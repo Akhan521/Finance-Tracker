@@ -139,6 +139,14 @@ family members.
 - See how many bills are paid, how many remain, and the total count.
   (A pie or donut chart is one idea; not decided.)
 - Data persists: closing the app and coming back later keeps everything intact.
+- Nothing is on autopay, on purpose. Household members get paid at different
+  times, and bills are paid by hand only once the money is in place.
+- Most bills (home, auto loans, utilities, car insurance) stay around the
+  same amount each time.
+- Credit cards vary: the minimum payment changes a little, and the amount
+  actually paid depends on what the household can put down that month.
+- Flexible: any kind of bill or expense can be added, not just this
+  household's list.
 
 ## Open questions
 
