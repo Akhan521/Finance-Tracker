@@ -147,6 +147,12 @@ family members.
   actually paid depends on what the household can put down that month.
 - Flexible: any kind of bill or expense can be added, not just this
   household's list.
+- Who pays what: household funds are pooled, and the parents decide and track
+  which household bills get paid. Aamir pays his own credit cards and personal
+  expenses.
+- Amounts must stay editable even for steady bills. A payment can differ from
+  the usual amount, and the usual amount itself can change for good (e.g. after
+  a refinance).
 
 ## Open questions
 
