@@ -130,6 +130,22 @@ are paid through each company's own site or app.
 so the built-in Passwords app works and can share a group of passwords with
 family members.
 
+## D8. Who can see which bills: Decided
+
+**Decision.**
+- **Household bills** are shared: every member of the household can see them.
+- **Personal bills** are private: only the person who owns them can see them.
+  Other household members, including parents, cannot.
+
+**How it must be enforced.** The database itself enforces these rules for
+every read and write, not just the app's screens. A bug in the app, or someone
+calling the database directly, must still be unable to read another person's
+personal bills.
+
+**Still open.** Who can add, edit, or mark household bills paid. Also whether
+whoever administers the hosted database could see personal bills through the
+provider's dashboard.
+
 ---
 
 ## Requirements gathered so far
