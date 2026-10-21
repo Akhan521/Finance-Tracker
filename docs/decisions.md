@@ -52,9 +52,36 @@ Android are out of scope.
 **Why it matters.** With Windows dropped, a native Apple app is a real option
 again. Earlier, cross-device reach favored a web app.
 
-## D5. Platform and storage: Open
+## D5. Platform and storage: Decided (web app first)
 
-**Context.** The deciding question is where the data lives and how it persists.
+**Decision.** Build a free web app that can be installed on the iPhone home
+screen, with data in a hosted online database. Keep the door open to a native
+iPhone/Mac app later, reusing the same database.
+
+**Why.**
+- It costs nothing to run. A native app needs Apple's $99/year Developer
+  Program for iCloud sync and for installs that don't expire after 7 days.
+- Sharing between household members is simpler: everyone signs in to the same
+  household.
+- It builds on existing React experience.
+
+**Workarounds considered and rejected.**
+- A free Apple account with Xcode installs: the app expires every 7 days and
+  can't use iCloud sync. Each family member would have to plug in to the Mac
+  weekly.
+- AltStore/SideStore: these automate weekly re-signing, but there's no iCloud
+  sync, a 3-app limit, a Mac must stay running, and they're hobbyist tools.
+- The App Store: still requires the $99/year program, adds app review and a
+  privacy policy, and the app is removed if the membership lapses. It's a later
+  distribution step, not a way to avoid cost.
+- TestFlight: private household installs, but still requires the $99 program,
+  and builds expire every 90 days.
+
+**What we give up.** A less polished feel on iPhone, weaker offline support,
+and less reliable reminders than native notifications. If these start to
+matter, pivot to native (see the comparison below).
+
+**Comparison considered.**
 
 | | Native iPhone/Mac app | Web app (installable on the home screen) |
 |---|---|---|
@@ -66,6 +93,21 @@ again. Earlier, cross-device reach favored a web app.
 | Cost | $99/year Apple Developer Program (needed for iCloud sync and installs that don't expire) | Free tiers cover one household |
 | Reminders | Native notifications, very reliable | Work on iPhone only after adding to the home screen; less reliable |
 | Prior experience | New (Swift) | Some (React) |
+
+## D6. Security is the top priority: Decided (principle)
+
+**Decision.** Security takes priority over convenience and features,
+especially:
+- database operations,
+- how long data is kept,
+- who can access the data,
+- protecting the household's data as a whole.
+
+**Note.** No system can promise zero gaps. The approach is to store as little
+sensitive data as possible, have the database itself enforce who sees what
+(not just the app's screens), and add layers of protection so that one mistake
+doesn't expose everything. The specific measures will be recorded as decisions
+as we make them.
 
 ---
 
@@ -79,7 +121,6 @@ again. Earlier, cross-device reach favored a web app.
 
 ## Open questions
 
-- Platform: web app, iOS app, or something else?
-- Tech stack.
+- Tech stack (frontend framework, hosted database, sign-in).
 - How the at-a-glance view looks.
 - Reminders: whether and how the app notifies people before a due date.
