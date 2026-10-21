@@ -41,6 +41,32 @@ everything on one device, which is simpler and more private.
 **Current direction.** Treat multi-user as a nice-to-have. Prefer a setup that
 doesn't rule it out later.
 
+## D4. Devices to support: Decided
+
+**Context.** Everyone in the household uses an iPhone. Laptops are a mix of
+macOS and Windows, but the app won't be used on Windows.
+
+**Decision.** Target iPhone first, with Mac as a secondary device. Windows and
+Android are out of scope.
+
+**Why it matters.** With Windows dropped, a native Apple app is a real option
+again. Earlier, cross-device reach favored a web app.
+
+## D5. Platform and storage: Open
+
+**Context.** The deciding question is where the data lives and how it persists.
+
+| | Native iPhone/Mac app | Web app (installable on the home screen) |
+|---|---|---|
+| Where data lives | On the device, synced through the user's own iCloud | In a hosted online database |
+| Persistence | Survives closing the app; iCloud keeps phone and Mac in sync | Reliable only with an online database. Browser-only storage can be wiped by iOS after weeks of not opening the site. |
+| Works offline | Yes, fully | Mostly not, without extra work |
+| One person, several devices | Free and automatic through iCloud | Needs a sign-in |
+| Several people sharing one list | Possible through iCloud sharing, but more work to build | Straightforward: everyone signs in to the same household |
+| Cost | $99/year Apple Developer Program (needed for iCloud sync and installs that don't expire) | Free tiers cover one household |
+| Reminders | Native notifications, very reliable | Work on iPhone only after adding to the home screen; less reliable |
+| Prior experience | New (Swift) | Some (React) |
+
 ---
 
 ## Requirements gathered so far
