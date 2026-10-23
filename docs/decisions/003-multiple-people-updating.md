@@ -1,4 +1,4 @@
-# D3. Multiple people updating it: Leaning (nice to have)
+# D3. Multiple people updating it: Decided (required, see update below)
 
 **Context.** Having several household members mark bills paid from their own
 phones would be nice, but it isn't required. One person keeping it up to date
@@ -10,3 +10,8 @@ everything on one device, which is simpler and more private.
 
 **Current direction.** Treat multi-user as a nice-to-have. Prefer a setup that
 doesn't rule it out later.
+
+**Update: now Decided (required).** Later decisions depend on several people
+each signing in with their own account: private personal bills (D8), any
+member editing household bills (D8), owners (D14), and per-person reminders
+(D16). Multi-user is no longer optional.

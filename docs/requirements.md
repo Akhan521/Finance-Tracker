@@ -6,7 +6,9 @@ bills work. Decisions built on these live in [`decisions/`](decisions/).
 - See at a glance when each bill is due.
 - See at a glance whether each bill is paid or still pending.
 - See how many bills are paid, how many remain, and the total count.
-  (A pie or donut chart is one idea; not decided.)
+  (Later refined in D11a: the calendar colors show status, so the app shows
+  money totals (paid, overdue, left) instead of counts. The chart idea became
+  the category donut in D11b.)
 - Data persists: closing the app and coming back later keeps everything intact.
 - Nothing is on autopay, on purpose. Household members get paid at different
   times, and bills are paid by hand only once the money is in place.

@@ -1,4 +1,4 @@
-# D13. Leaving and rejoining a household: Decided (partly open)
+# D13. Leaving and rejoining a household: Decided
 
 **Decision.**
 - **Leaving is a deliberate choice by the member.** They intentionally choose

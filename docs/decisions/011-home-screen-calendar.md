@@ -1,4 +1,4 @@
-# D11. Home screen layout: Leaning (month calendar)
+# D11. Home screen layout: Decided (month calendar)
 
 **Options mocked up** (browser mockups, same sample month in each):
 - **A. Donut chart on top.** A ring of paid/overdue/upcoming with "5 of 9
