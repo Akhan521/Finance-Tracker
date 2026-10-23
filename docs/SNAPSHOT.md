@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-10-21 (end of brainstorming session 2)
+**Last updated:** 2026-10-22 (end of brainstorming session 3)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in [`docs/decisions.md`](decisions.md);
@@ -28,7 +28,8 @@ the first sign of a miss is a late-payment email. The problem is visibility,
 not money. Core needs:
 - See when each bill is due.
 - See whether it's paid or pending.
-- See how many bills are paid, remaining, and in total.
+- See how much is paid, overdue, and left. (Originally "how many"; changed
+  to money totals in D11a, since the calendar colors already show status.)
 - Data persists between sessions.
 
 ## Where we are
@@ -38,10 +39,13 @@ not money. Core needs:
   implementation plan. **Nothing gets built until the design doc is
   approved.**
 - **Repo contents:** `README.md`, `.gitignore`, `docs/decisions.md`
-  (decision log D1–D11b), `docs/SNAPSHOT.md` (this file).
+  (decision log D1–D16), `docs/SNAPSHOT.md` (this file).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
+- **Session 3:** data retention, leaving/rejoining/removing members, account
+  deletion, and reminder timing were settled (D12–D16). It ended mid-question
+  on how reminders are delivered.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout) and
   `pastel-v1.html` (theme, calendar, and donut A). To view them again,
@@ -65,6 +69,11 @@ not money. Core needs:
 | D11 | Home screen is a **month calendar**, with due dates color-coded by status. | Decided |
 | D11a | **Minimal and quiet; never show the same info twice.** No bill counts, because the colors carry status (green paid, red overdue, yellow upcoming). Show three money totals: paid, overdue, and left. A toggle switches between the calendar view and a chart view. | Decided |
 | D11b | **Cream and pastel light theme.** The chart view is a **category donut** ("where does the money go?"): slices are categories sized by their share of the month, solid for paid and pale for still owed. The center shows the amount left of the month's total. | Decided |
+| D12 | Keep **3 years** of history; older entries auto-delete. **CSV export** anytime. A heads-up a month before deletion with one-tap export, and the window is an adjustable household setting, including "never" (these two are Claude's additions). Storage cost is negligible; the trade-off is privacy. | Decided |
+| D13 | **Leaving is a deliberate choice** by the member. They keep their account and personal bills and lose access to household bills. They **can rejoin, but only with an owner's approval.** Joining for the first time uses the same flow. History keeps who paid. | Decided |
+| D14 | **Owner role.** The household creator is the first owner and can make others owners (e.g. both parents). The last owner must hand off before leaving. **Only owners invite, approve joins and rejoins, and remove members.** Owners have no extra power over bills. Named "owner," not "admin," to avoid confusion with D9. | Decided |
+| D15 | **Deleting an account** removes personal bills right away. Past household payments show "former member." A permanent-deletion warning and an export are offered first. Provider backups may hold the data briefly. (Claude's recommendation; Aamir asked for it.) | Decided |
+| D16 | **Reminders**, sent only while a bill is unpaid: **1 week before**, **on the due date**, and **once when overdue** (the day after). Marking paid cancels the rest. In this household, the parents get the household bill reminders. | Decided; **delivery method open** |
 
 ## Facts about the household (from Aamir)
 
@@ -94,6 +103,11 @@ not money. Core needs:
 - The calendar/donut toggle is a small icon switch at the top right. The
   Household / Mine switch sits under the month title.
 - Marking paid records who paid.
+- Owners can remove or demote other owners, except the last owner (D14).
+- Each member opts in or out of household bill reminders; this isn't tied to
+  the owner role. Personal bill reminders go only to that bill's owner. The
+  1-week lead time is adjustable per person (D16).
+- The overdue reminder is sent once, not repeated (D16).
 
 ## Ruled out (and why)
 
@@ -113,20 +127,27 @@ not money. Core needs:
   sliver.
 - **Progress rings per category:** pretty, but they hide how big each
   category is.
+- **Letting anyone remove anyone:** too lax. **A single admin:** a single
+  point of failure. **Hard-coding "parents":** doesn't fit other households.
+  The multi-owner role replaced all three.
+- **Former members rejoining on their own:** anyone ever in the household
+  could look again at will.
+- **Keeping a deleted account's name on household history:** "delete" should
+  mean gone.
 
 ## Open topics, in suggested order
 
-1. **Data retention:** how long history is kept, export and backups, and what
-   happens when someone leaves the household or deletes their account.
-2. **Reminders:** whether and how people are notified before due dates
-   (home-screen web app notifications, a calendar feed, email).
-3. **Sign-in and joining a household:** how members sign in and how they're
-   invited.
-4. **Tech stack:** frontend (likely React, given Aamir's experience), the
+1. **Reminder delivery (in progress):** phone notifications, email, or both.
+2. **Sign-in and joining a household:** how members sign in, and how owners
+   invite and approve (the rules are set in D13/D14; this is the mechanics).
+3. **Tech stack:** frontend (likely React, given Aamir's experience), the
    hosted database and sign-in provider (candidates: Supabase with
    database-level row security, or Firebase), and hosting. Check free-tier
-   limits, e.g. whether an inactive project gets paused and what backups the
-   free tier includes.
+   limits: whether an inactive project gets paused, what backups are included,
+   and how long the provider keeps deleted data in backups (D15). Also check
+   scheduled jobs for sending reminders and the 3-year cleanup.
+4. **Backups:** what happens if the hosted database is lost. Depends on the
+   stack choice.
 5. Confirm or adjust the unconfirmed calls above.
 6. Other screens (adding or editing a bill, marking paid, settings), if
    they need design discussion. Mockups help here.
@@ -135,9 +156,16 @@ not money. Core needs:
 
 ## Next step
 
-Resume with **data retention**: how long payment history is kept, export and
-backups, and what happens to a person's personal bills if they leave the
-household or delete their account. Security is still the top priority (D6).
+Resume on **reminder delivery**. The question left pending:
+
+> Phone notifications need each person to add the app to their iPhone home
+> screen and tap "Allow notifications" once; otherwise nothing arrives. Email
+> needs no setup but lands in the same inbox where late notices already got
+> lost. Claude suggested phone notifications as the main channel, with email
+> as an optional backup per person. **Would Aamir's parents be comfortable
+> with the one-time home-screen setup, or is email the safer bet for them?**
+
+Then move on to sign-in and joining a household.
 
 ## Working conventions
 
