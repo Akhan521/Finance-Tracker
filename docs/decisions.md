@@ -329,8 +329,13 @@ heads-up and the adjustable setting protect against regret.
   with).** Past household payments still show who paid them, even after that
   person leaves.
 
-**Still open.** Whether rejoining needs approval from someone in the household,
-and whether members can remove someone else.
+- **Rejoining needs approval from a current household member.** A former
+  member can't let themselves back in. This closes the gap where anyone ever
+  in the household could see its bills again whenever they liked.
+- **Joining for the first time works the same way (Claude's call).** A current
+  member invites or approves. Joining and rejoining use one flow.
+
+**Still open.** Whether members can remove someone else from the household.
 
 ---
 
