@@ -3,8 +3,10 @@
 **Last updated:** 2026-10-22 (end of brainstorming session 3)
 
 Paste this whole file into a new session to pick up where we left off. The
-full reasoning behind each decision is in [`docs/decisions.md`](decisions.md);
-this file is the short version plus where we are.
+full reasoning behind each decision is in its own file under
+[`docs/decisions/`](decisions/) (linked from the table below), and what the
+household needs is in [`docs/requirements.md`](requirements.md). This file is
+the short version plus where we are.
 
 ---
 
@@ -12,11 +14,12 @@ this file is the short version plus where we are.
 
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). We're still in **brainstorming/planning**.
-> No code has been written yet. Read `docs/SNAPSHOT.md` and
-> `docs/decisions.md`, then continue the brainstorming from "Next step" below.
-> Keep recording every decision (with trade-offs and why) in
-> `docs/decisions.md`, commit each one as a small separate commit, and update
-> this snapshot at the end of the session.
+> No code has been written yet. Read `docs/SNAPSHOT.md`, then open any
+> decision file in `docs/decisions/` you need the details of, and continue the
+> brainstorming from "Next step" below. Record each new decision (with
+> trade-offs and why) as a new file `docs/decisions/NNN-short-slug.md`, add it
+> to the table in this snapshot, commit each one as a small separate commit,
+> and update this snapshot at the end of the session.
 
 ---
 
@@ -38,8 +41,9 @@ not money. Core needs:
   questions → playback → written design doc → reviewer check → approval →
   implementation plan. **Nothing gets built until the design doc is
   approved.**
-- **Repo contents:** `README.md`, `.gitignore`, `docs/decisions.md`
-  (decision log D1–D16), `docs/SNAPSHOT.md` (this file).
+- **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
+  file), `docs/requirements.md`, and `docs/decisions/` (one file per decision,
+  D1–D16).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -52,28 +56,32 @@ not money. Core needs:
   restart the visual companion server with
   `--project-dir ~/Developer/finance-tracker`.
 
-## Decisions so far (details in decisions.md)
+## Decisions so far
+
+Click a decision number for the full reasoning. Status key: **Decided**
+(settled), **Leaning** (current direction, not final), **Open** (still being
+discussed).
 
 | # | Decision | Status |
 |---|---|---|
-| D1 | The problem is losing track of bills, not affording them. Focus on visibility and reminders, not budgeting. | Decided |
-| D2 | Main user is the household; also works for one person. | Decided |
-| D3 | Multiple people updating from their own phones. | Leaning, nice to have (now effectively needed by D8) |
-| D4 | iPhone first, Mac second. No Windows or Android. | Decided |
-| D5 | **Free web app**, installable on the iPhone home screen, with a hosted online database. Can pivot to a native iPhone/Mac app later on the same data. | Decided |
-| D6 | **Security is the top priority.** The database enforces access, protection is layered, and sensitive data is kept to a minimum. | Decided |
-| D7 | Never store card numbers, full account numbers, or logins. A nickname, last 4 digits, and a payment link are OK. Logins go in Apple's Passwords app. | Decided |
-| D8 | Household bills are shared with every member. **Personal bills are private to their owner.** Any member can add, edit, or mark household bills paid. | Decided |
-| D9 | The database admin (a family member) could see everything. Accepted; lock the admin account down with a strong password, two-step login, one admin, and no secret keys in code. No encryption for now, but leave room to add it. | Decided |
-| D10 | Bill model: set up once; each due date is its own entry (pending, paid, or overdue); marking paid records the amount, date, and who paid. The amount is pre-filled but editable, with "Just this time, or from now on?" Every bill has a category (needed by D11b). | Leaning |
-| D11 | Home screen is a **month calendar**, with due dates color-coded by status. | Decided |
-| D11a | **Minimal and quiet; never show the same info twice.** No bill counts, because the colors carry status (green paid, red overdue, yellow upcoming). Show three money totals: paid, overdue, and left. A toggle switches between the calendar view and a chart view. | Decided |
-| D11b | **Cream and pastel light theme.** The chart view is a **category donut** ("where does the money go?"): slices are categories sized by their share of the month, solid for paid and pale for still owed. The center shows the amount left of the month's total. | Decided |
-| D12 | Keep **3 years** of history; older entries auto-delete. **CSV export** anytime. A heads-up a month before deletion with one-tap export, and the window is an adjustable household setting, including "never" (these two are Claude's additions). Storage cost is negligible; the trade-off is privacy. | Decided |
-| D13 | **Leaving is a deliberate choice** by the member. They keep their account and personal bills and lose access to household bills. They **can rejoin, but only with an owner's approval.** Joining for the first time uses the same flow. History keeps who paid. | Decided |
-| D14 | **Owner role.** The household creator is the first owner and can make others owners (e.g. both parents). The last owner must hand off before leaving. **Only owners invite, approve joins and rejoins, and remove members.** Owners have no extra power over bills. Named "owner," not "admin," to avoid confusion with D9. | Decided |
-| D15 | **Deleting an account** removes personal bills right away. Past household payments show "former member." A permanent-deletion warning and an export are offered first. Provider backups may hold the data briefly. (Claude's recommendation; Aamir asked for it.) | Decided |
-| D16 | **Reminders**, sent only while a bill is unpaid: **1 week before**, **on the due date**, and **once when overdue** (the day after). Marking paid cancels the rest. In this household, the parents get the household bill reminders. | Decided; **delivery method open** |
+| [D1](decisions/001-the-problem.md) | The problem is losing track of bills, not affording them. Focus on visibility and reminders, not budgeting. | Decided |
+| [D2](decisions/002-primary-user-household.md) | Main user is the household; also works for one person. | Decided |
+| [D3](decisions/003-multiple-people-updating.md) | Multiple people, each signing in from their own phone. Started as a nice-to-have, now required by D8, D14, and D16. | Decided |
+| [D4](decisions/004-devices.md) | iPhone first, Mac second. No Windows or Android. | Decided |
+| [D5](decisions/005-web-app-first.md) | **Free web app**, installable on the iPhone home screen, with a hosted online database. Can pivot to a native iPhone/Mac app later on the same data. | Decided |
+| [D6](decisions/006-security-first.md) | **Security is the top priority.** The database enforces access, protection is layered, and sensitive data is kept to a minimum. | Decided |
+| [D7](decisions/007-minimal-sensitive-data.md) | Never store card numbers, full account numbers, or logins. A nickname, last 4 digits, and a payment link are OK. Logins go in Apple's Passwords app. | Decided |
+| [D8](decisions/008-bill-visibility.md) | Household bills are shared with every member. **Personal bills are private to their owner.** Any member can add, edit, or mark household bills paid. | Decided |
+| [D9](decisions/009-database-admin-access.md) | The database admin (a family member) could see everything. Accepted; lock the admin account down with a strong password, two-step login, one admin, and no secret keys in code. No encryption for now, but leave room to add it. | Decided |
+| [D10](decisions/010-bill-model.md) | Bill model: set up once; each due date is its own entry (pending, paid, or overdue); marking paid records the amount, date, and who paid. The amount is pre-filled but editable, with "Just this time, or from now on?" Every bill has a category (needed by D11b). | Leaning |
+| [D11](decisions/011-home-screen-calendar.md) | Home screen is a **month calendar**, with due dates color-coded by status. | Decided |
+| [D11a](decisions/011a-minimal-and-quiet.md) | **Minimal and quiet; never show the same info twice.** No bill counts, because the colors carry status (green paid, red overdue, yellow upcoming). Show three money totals: paid, overdue, and left. A toggle switches between the calendar view and a chart view. | Decided |
+| [D11b](decisions/011b-theme-and-category-donut.md) | **Cream and pastel light theme.** The chart view is a **category donut** ("where does the money go?"): slices are categories sized by their share of the month, solid for paid and pale for still owed. The center shows the amount left of the month's total. | Decided |
+| [D12](decisions/012-data-retention.md) | Keep **3 years** of history; older entries auto-delete. **CSV export** anytime. A heads-up a month before deletion with one-tap export, and the window is an adjustable household setting, including "never" (these two are Claude's additions). Storage cost is negligible; the trade-off is privacy. | Decided |
+| [D13](decisions/013-leaving-and-rejoining.md) | **Leaving is a deliberate choice** by the member. They keep their account and personal bills and lose access to household bills. They **can rejoin, but only with an owner's approval.** Joining for the first time uses the same flow. History keeps who paid. | Decided |
+| [D14](decisions/014-household-owners.md) | **Owner role.** The household creator is the first owner and can make others owners (e.g. both parents). The last owner must hand off before leaving. **Only owners invite, approve joins and rejoins, and remove members.** Owners have no extra power over bills. Named "owner," not "admin," to avoid confusion with D9. | Decided |
+| [D15](decisions/015-account-deletion.md) | **Deleting an account** removes personal bills right away. Past household payments show "former member." A permanent-deletion warning and an export are offered first. Provider backups may hold the data briefly. (Claude's recommendation; Aamir asked for it.) | Decided |
+| [D16](decisions/016-reminders.md) | **Reminders**, sent only while a bill is unpaid: **1 week before**, **on the due date**, and **once when overdue** (the day after). Marking paid cancels the rest. In this household, the parents get the household bill reminders. | Decided; **delivery method open** |
 
 ## Facts about the household (from Aamir)
 
@@ -173,6 +181,10 @@ Then move on to sign-in and joining a household.
   Aamir prefers reacting to visual mockups for anything on screen.
 - Small, meaningful commits, including for planning docs. One decision per
   commit where practical.
+- Each decision gets its own file, `docs/decisions/NNN-short-slug.md`, under
+  a page long: context, decision, why, and the options ruled out. If a later
+  decision changes an earlier one, add a short dated "Update" note to the
+  earlier file instead of rewriting it.
 - Commit as `Aamir Khan <aamirksfg@gmail.com>` (check `git config
   user.email` before the first commit of a session).
 - Remote: `origin` → `https://github.com/Akhan521/Finance-Tracker.git`,
