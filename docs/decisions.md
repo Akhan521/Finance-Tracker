@@ -392,7 +392,19 @@ deleted data can linger there for a limited time before it ages out. The app
 shouldn't claim deletion is instant everywhere. Check the chosen provider's
 backup retention when picking the stack.
 
-## D16. Reminders: In progress
+## D16. Reminders: Decided (delivery method open)
+
+**When (from Aamir).** Up to three reminders per bill, each sent **only if the
+bill is still unpaid**:
+1. one week before the due date,
+2. on the due date,
+3. when it turns overdue.
+
+Marking a bill paid cancels its remaining reminders.
+
+**Claude's call (keep it quiet).** The overdue reminder is sent once, the day
+after the due date. It doesn't repeat; the bill stays red on the calendar
+until it's paid.
 
 **From Aamir.**
 - In this household, the parents should get household bill reminders.
