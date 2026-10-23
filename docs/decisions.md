@@ -392,6 +392,20 @@ deleted data can linger there for a limited time before it ages out. The app
 shouldn't claim deletion is instant everywhere. Check the chosen provider's
 backup retention when picking the stack.
 
+## D16. Reminders: In progress
+
+**From Aamir.**
+- In this household, the parents should get household bill reminders.
+- A reminder should arrive about **one week before** the due date. This fits
+  the no-autopay rhythm: there's time to make sure everyone's money is in.
+
+**Claude's calls (not yet confirmed).**
+- **Each member chooses whether to get household bill reminders.** The parents
+  turn it on, and others can leave it off. This isn't tied to the owner role,
+  which only controls membership (D14), so it works for any household.
+- **Personal bill reminders go only to the bill's owner** (D8 privacy).
+- **The one-week lead time is the default, adjustable per person.**
+
 ---
 
 ## Requirements gathered so far
