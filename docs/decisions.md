@@ -315,6 +315,23 @@ non-issue and old records are low-risk (no account or card numbers, D7). The
 undone, it's easy to move from 3 years to "never," but not the reverse; the
 heads-up and the adjustable setting protect against regret.
 
+## D13. Leaving and rejoining a household: Decided (partly open)
+
+**Decision.**
+- **Leaving is a deliberate choice by the member.** They intentionally choose
+  to leave; it never happens by accident.
+- **After leaving, they keep their account and their personal bills.** They
+  lose access to the household bills, so they see only their own account and
+  personal bills.
+- **They can rejoin later.** For example, someone who moved out may still want
+  to follow the household bills.
+- **History stays accurate (Claude's call, matches the guess Aamir agreed
+  with).** Past household payments still show who paid them, even after that
+  person leaves.
+
+**Still open.** Whether rejoining needs approval from someone in the household,
+and whether members can remove someone else.
+
 ---
 
 ## Requirements gathered so far
