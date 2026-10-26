@@ -51,8 +51,9 @@ not money. Core needs:
   deletion, and reminder timing were settled (D12–D16). It ended mid-question
   on how reminders are delivered.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
-  pushed). The final picks are `minimal-v1.html` (layout) and
-  `pastel-v1.html` (theme, calendar, and donut A). To view them again,
+  pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
+  (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
+  (the other screens, D21). To view them again,
   restart the visual companion server with
   `--project-dir ~/Developer/finance-tracker`.
 
@@ -86,6 +87,7 @@ discussed).
 | [D18](decisions/018-sign-in.md) | **Sign in with an emailed 6-digit code**, no passwords. **Face ID (passkeys) later** as an upgrade. Ruled out: passwords, emailed links (an iPhone quirk opens Safari), and Sign in with Apple ($99). | Decided |
 | [D19](decisions/019-joining-a-household.md) | **Joining = an owner invites by email.** The invitee signs in with that email and taps Accept. **Rejoining = being invited again** (no request button). Invites expire in 7 days and can be cancelled. Ruled out: shareable links and join codes. (Claude's recommendation; Aamir asked for it.) | Decided |
 | [D20](decisions/020-tech-stack.md) | **Supabase** (free) for the database, sign-in codes, and the daily job. A **dedicated Gmail account** sends all email. **React + TypeScript**, installable on the home screen. **Free static hosting** (e.g. Cloudflare Pages). Free-plan catches are handled with a daily keep-alive (it pauses after 1 week idle) and our own encrypted weekly backups (no backups on free). Firebase was ruled out: no 6-digit email code. | Decided |
+| [D21](decisions/021-other-screens.md) | **Other screens, mocked up.** The Settings look (grouped rows, one thing per line) sets the style everywhere. Pay sheet: pre-filled, one tap; if the amount differs, a quiet "Use $X from now on" switch. New bill: one calm page (name, Household/Mine, then Amount / Due / Category; extras under "More details"). Edit bill: history as a timeline. Settings and the owner household view approved. | Decided |
 
 ## Facts about the household (from Aamir)
 
@@ -114,7 +116,10 @@ discussed).
   This replaced a "this week / next week" list, which repeated the calendar.
 - The calendar/donut toggle is a small icon switch at the top right. The
   Household / Mine switch sits under the month title.
-- Marking paid records who paid.
+- Marking paid records who paid: automatically, whoever taps "Mark paid" (D21).
+- "+" (new bill) and a gear (settings) sit on the home screen (D21).
+- The credit card pay sheet asks for the minimum, optionally the statement
+  balance, then the amount paid (D21; shown in mockups, no comment yet).
 - Owners can remove or demote other owners, except the last owner (D14).
 - Each member opts in or out of household bill reminders; this isn't tied to
   the owner role. Personal bill reminders go only to that bill's owner. The
@@ -150,9 +155,7 @@ discussed).
 ## Open topics, in suggested order
 
 1. Confirm or adjust the unconfirmed calls above.
-2. Other screens (adding or editing a bill, marking paid, settings), if
-   they need design discussion. Mockups help here.
-3. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
+2. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
    run the reviewer check, get approval, then write the implementation plan.
 
 ## Next step

@@ -24,3 +24,8 @@ rules. The other points were not explicitly confirmed.
   (Unconfirmed.)
 - **At-a-glance counts** (paid, remaining, total, with overdue called out)
   cover the current month. (Unconfirmed; the period could differ.)
+
+**Update (2026-10-25, see D21).** The "Just this time, or from now on?" prompt
+is now a quiet switch on the pay sheet, "Use $X from now on," off by default.
+It only appears when the amount differs. The rule is the same; only the
+presentation changed.
