@@ -1,4 +1,4 @@
-# D16. Reminders: Decided (delivery method open)
+# D16. Reminders: Decided (delivery: see D17)
 
 **When (from Aamir).** Up to three reminders per bill, each sent **only if the
 bill is still unpaid**:
