@@ -34,3 +34,6 @@ share the same daily job.
 **Anyone can turn reminders off entirely (from Aamir).** Each person chooses
 whether to get reminder emails at all, for household and personal bills alike.
 Someone who'd rather not get email can opt out and rely on the calendar.
+
+**Update (2026-10-25, see D20).** Email is sent through a dedicated Gmail
+account (free), not a custom domain.

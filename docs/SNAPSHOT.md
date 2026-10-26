@@ -85,6 +85,7 @@ discussed).
 | [D17](decisions/017-reminder-delivery.md) | Reminders go out by **email**, from a daily server job. Sending needs either a domain (~$10–12/yr) or a dedicated Gmail account (free), to settle with the stack. **Email only for now**; phone notifications (Web Push) can be added later. **Anyone can turn reminders off entirely.** | Decided |
 | [D18](decisions/018-sign-in.md) | **Sign in with an emailed 6-digit code**, no passwords. **Face ID (passkeys) later** as an upgrade. Ruled out: passwords, emailed links (an iPhone quirk opens Safari), and Sign in with Apple ($99). | Decided |
 | [D19](decisions/019-joining-a-household.md) | **Joining = an owner invites by email.** The invitee signs in with that email and taps Accept. **Rejoining = being invited again** (no request button). Invites expire in 7 days and can be cancelled. Ruled out: shareable links and join codes. (Claude's recommendation; Aamir asked for it.) | Decided |
+| [D20](decisions/020-tech-stack.md) | **Supabase** (free) for the database, sign-in codes, and the daily job. A **dedicated Gmail account** sends all email. **React + TypeScript**, installable on the home screen. **Free static hosting** (e.g. Cloudflare Pages). Free-plan catches are handled with a daily keep-alive (it pauses after 1 week idle) and our own encrypted weekly backups (no backups on free). Firebase was ruled out: no 6-digit email code. | Decided |
 
 ## Facts about the household (from Aamir)
 
@@ -148,21 +149,10 @@ discussed).
 
 ## Open topics, in suggested order
 
-1. **Reminder delivery (in progress):** phone notifications, email, or both.
-2. **Sign-in and joining a household:** how members sign in, and how owners
-   invite and approve (the rules are set in D13/D14; this is the mechanics).
-3. **Tech stack:** frontend (likely React, given Aamir's experience), the
-   hosted database and sign-in provider (candidates: Supabase with
-   database-level row security, or Firebase), and hosting. Check free-tier
-   limits: whether an inactive project gets paused, what backups are included,
-   and how long the provider keeps deleted data in backups (D15). Also check
-   scheduled jobs for sending reminders and the 3-year cleanup.
-4. **Backups:** what happens if the hosted database is lost. Depends on the
-   stack choice.
-5. Confirm or adjust the unconfirmed calls above.
-6. Other screens (adding or editing a bill, marking paid, settings), if
+1. Confirm or adjust the unconfirmed calls above.
+2. Other screens (adding or editing a bill, marking paid, settings), if
    they need design discussion. Mockups help here.
-7. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
+3. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
    run the reviewer check, get approval, then write the implementation plan.
 
 ## Next step
