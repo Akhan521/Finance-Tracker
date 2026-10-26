@@ -19,7 +19,8 @@ until it's paid.
 
 **Claude's calls (not yet confirmed).**
 - **Each member chooses whether to get household bill reminders.** The parents
-  turn it on, and others can leave it off. This isn't tied to the owner role,
+  turn it on, and others can leave it off. (Confirmed and widened by D17:
+  anyone can turn off all reminders.) This isn't tied to the owner role,
   which only controls membership (D14), so it works for any household.
 - **Personal bill reminders go only to the bill's owner** (D8 privacy).
 - **The one-week lead time is the default, adjustable per person.**

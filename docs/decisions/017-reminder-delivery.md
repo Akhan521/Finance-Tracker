@@ -1,4 +1,4 @@
-# D17. How reminders are delivered: Decided (email), phone notifications open
+# D17. How reminders are delivered: Decided (email only)
 
 **Decision.** Reminders (D16) go out by **email**. Aamir judged it the best fit
 for the household: it needs no setup on anyone's phone.
@@ -27,5 +27,10 @@ iOS 16.4; no $99 Apple program needed.
   - Lock-screen text is visible to anyone nearby, so messages would leave out
     amounts.
 
-**Still open.** Whether to also offer phone notifications as an opt-in per
-person. It would be little extra work, since it shares the daily job.
+**Phone notifications: not for now.** Keep it email-only. Push can be added
+later as a per-person option without redesigning anything, since it would
+share the same daily job.
+
+**Anyone can turn reminders off entirely (from Aamir).** Each person chooses
+whether to get reminder emails at all, for household and personal bills alike.
+Someone who'd rather not get email can opt out and rely on the calendar.
