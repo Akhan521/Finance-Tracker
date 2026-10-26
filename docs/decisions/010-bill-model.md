@@ -21,7 +21,7 @@ rules, and the rest was confirmed by Aamir 2026-10-25.
   - The usual amount can also be edited directly at any time.
 - **Credit cards:** each entry records that cycle's minimum due and the amount
   actually paid. It counts as paid once at least the minimum is paid.
-  (Confirmed by aamir 2026-10-25.)
+  (Confirmed by Aamir 2026-10-25.)
 - **At-a-glance counts** (paid, remaining, total, with overdue called out)
   cover the current month. (The period, one month at a time, was confirmed 2026-10-25. Counts were
   replaced by money totals in D11a.)
