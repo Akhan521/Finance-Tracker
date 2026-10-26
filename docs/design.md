@@ -1,6 +1,6 @@
 # Household Bill Tracker: Design
 
-**Date:** 2026-10-25 · **Status:** Draft for approval · **Owner:** Aamir Khan
+**Date:** 2026-10-25 · **Status:** Approved by Aamir (2026-10-25) · **Owner:** Aamir Khan
 
 This document is everything a builder needs to plan the first version. The
 reasoning behind each choice is in `docs/decisions/` (D1–D22, linked as
