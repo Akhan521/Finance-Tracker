@@ -1,7 +1,7 @@
-# D10. How a bill works: Leaning (proposed, partly confirmed)
+# D10. How a bill works: Decided
 
 Proposed by Claude during brainstorming. Aamir's feedback shaped the amount
-rules. The other points were not explicitly confirmed.
+rules, and the rest was confirmed by Aamir 2026-10-25.
 
 - **A bill is set up once.** It has a name, a type (home, auto loan, utility,
   insurance, credit card, or any custom type), how often it repeats (monthly,
@@ -21,9 +21,10 @@ rules. The other points were not explicitly confirmed.
   - The usual amount can also be edited directly at any time.
 - **Credit cards:** each entry records that cycle's minimum due and the amount
   actually paid. It counts as paid once at least the minimum is paid.
-  (Unconfirmed.)
+  (Confirmed by aamir 2026-10-25.)
 - **At-a-glance counts** (paid, remaining, total, with overdue called out)
-  cover the current month. (Unconfirmed; the period could differ.)
+  cover the current month. (The period, one month at a time, was confirmed 2026-10-25. Counts were
+  replaced by money totals in D11a.)
 
 **Update (2026-10-25, see D21).** The "Just this time, or from now on?" prompt
 is now a quiet switch on the pay sheet, "Use $X from now on," off by default.

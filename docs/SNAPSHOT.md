@@ -74,7 +74,7 @@ discussed).
 | [D7](decisions/007-minimal-sensitive-data.md) | Never store card numbers, full account numbers, or logins. A nickname, last 4 digits, and a payment link are OK. Logins go in Apple's Passwords app. | Decided |
 | [D8](decisions/008-bill-visibility.md) | Household bills are shared with every member. **Personal bills are private to their owner.** Any member can add, edit, or mark household bills paid. | Decided |
 | [D9](decisions/009-database-admin-access.md) | The database admin (a family member) could see everything. Accepted; lock the admin account down with a strong password, two-step login, one admin, and no secret keys in code. No encryption for now, but leave room to add it. | Decided |
-| [D10](decisions/010-bill-model.md) | Bill model: set up once; each due date is its own entry (pending, paid, or overdue); marking paid records the amount, date, and who paid. The amount is pre-filled but editable, with "Just this time, or from now on?" Every bill has a category (needed by D11b). | Leaning |
+| [D10](decisions/010-bill-model.md) | Bill model: set up once; each due date is its own entry (pending, paid, or overdue); marking paid records the amount, date, and who paid. The amount is pre-filled but editable, with "Just this time, or from now on?" Every bill has a category (needed by D11b). | Decided |
 | [D11](decisions/011-home-screen-calendar.md) | Home screen is a **month calendar**, with due dates color-coded by status. | Decided |
 | [D11a](decisions/011a-minimal-and-quiet.md) | **Minimal and quiet; never show the same info twice.** No bill counts, because the colors carry status (green paid, red overdue, yellow upcoming). Show three money totals: paid, overdue, and left. A toggle switches between the calendar view and a chart view. | Decided |
 | [D11b](decisions/011b-theme-and-category-donut.md) | **Cream and pastel light theme.** The chart view is a **category donut** ("where does the money go?"): slices are categories sized by their share of the month, solid for paid and pale for still owed. The center shows the amount left of the month's total. | Decided |
@@ -106,25 +106,14 @@ discussed).
   No iOS experience. The goal is the best tool for the home, not learning or a
   portfolio piece.
 
-## Claude's calls, not yet confirmed by Aamir
+## Claude's calls
 
-- Every change to a household bill records who made it and when.
-- Removing a bill archives it instead of deleting it.
-- A credit card counts as paid once at least the minimum is paid.
-- The home screen covers one month at a time, with ‹ › to change months.
-- Tapping a calendar day shows that day's bills with a "Mark paid" button.
-  This replaced a "this week / next week" list, which repeated the calendar.
-- The calendar/donut toggle is a small icon switch at the top right. The
-  Household / Mine switch sits under the month title.
-- Marking paid records who paid: automatically, whoever taps "Mark paid" (D21).
-- "+" (new bill) and a gear (settings) sit on the home screen (D21).
-- The credit card pay sheet asks for the minimum, optionally the statement
-  balance, then the amount paid (D21; shown in mockups, no comment yet).
-- Owners can remove or demote other owners, except the last owner (D14).
-- Each member opts in or out of household bill reminders; this isn't tied to
-  the owner role. Personal bill reminders go only to that bill's owner. The
-  1-week lead time is adjustable per person (D16).
-- The overdue reminder is sent once, not repeated (D16).
+All of Claude's calls through D21 were reviewed and **confirmed by Aamir on
+2026-10-25**: change history, archiving instead of deleting, the credit card
+minimum rule, one month at a time, tap a day for its bills, control placement,
+per-person reminder settings, a single overdue reminder, the deletion heads-up
+and adjustable window, owners managing owners, sign-in code/session details,
+and the invite details. Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
 
@@ -154,8 +143,7 @@ discussed).
 
 ## Open topics, in suggested order
 
-1. Confirm or adjust the unconfirmed calls above.
-2. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
+1. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
    run the reviewer check, get approval, then write the implementation plan.
 
 ## Next step

@@ -24,7 +24,7 @@ more is fine if it's cheap.
 - **Export to CSV** (a spreadsheet file) anytime, so anyone can keep their own
   longer archive.
 
-**Claude's additions (not yet explicitly confirmed):**
+**Claude's additions (confirmed by Aamir 2026-10-25):**
 - **A heads-up before deletion.** About a month before entries pass the window,
   the app warns "Next month, entries from <month/year> will be removed," with
   a one-tap export.

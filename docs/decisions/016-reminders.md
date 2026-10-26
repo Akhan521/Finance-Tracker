@@ -17,7 +17,7 @@ until it's paid.
 - A reminder should arrive about **one week before** the due date. This fits
   the no-autopay rhythm: there's time to make sure everyone's money is in.
 
-**Claude's calls (not yet confirmed).**
+**Claude's calls (confirmed by Aamir 2026-10-25).**
 - **Each member chooses whether to get household bill reminders.** The parents
   turn it on, and others can leave it off. (Confirmed and widened by D17:
   anyone can turn off all reminders.) This isn't tied to the owner role,

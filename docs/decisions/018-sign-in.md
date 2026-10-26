@@ -23,7 +23,7 @@ it.
 **Trade-off accepted.** The account is only as secure as the person's email
 account.
 
-**Claude's calls (security details, not yet confirmed).**
+**Claude's calls (security details, confirmed by Aamir 2026-10-25).**
 - **Codes are single-use and short-lived.** They expire after about 10
   minutes.
 - **Wrong guesses are limited.** After a few wrong codes, wait before trying

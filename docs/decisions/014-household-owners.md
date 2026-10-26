@@ -27,5 +27,5 @@ administrator in D9.
 single-point-of-failure of one admin, and lets each household decide who its
 owners are, not a rule tied to "parents."
 
-**Not yet settled (Claude's lean).** Whether one owner can remove or demote
-another owner. Leaning yes, except the last owner can't be removed.
+**Owners managing owners (confirmed by Aamir 2026-10-25).** One owner can remove or demote
+another owner, except that the last owner can never be removed.

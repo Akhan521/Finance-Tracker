@@ -21,7 +21,7 @@ Tap a day on the calendar, then the bill, and a sheet slides up.
     future bills.
   - No pop-up, no question. This replaces the "Just this time, or from now
     on?" prompt in D10.
-- **Credit card (shown, not commented on).** It asks for this cycle's
+- **Credit card (confirmed by Aamir 2026-10-25).** It asks for this cycle's
   minimum, optionally the statement balance, then the amount being paid, and
   shows "Minimum covered ✓."
 - **Who paid** is recorded automatically as whoever taps "Mark paid."
