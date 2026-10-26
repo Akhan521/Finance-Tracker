@@ -17,3 +17,6 @@
   household could see its bills again whenever they liked.
 - **Joining for the first time works the same way.** An owner invites or
   approves. Joining and rejoining use one flow.
+
+**Update (2026-10-25, see D19).** Rejoining happens by an owner inviting the
+person again. There's no separate "request to rejoin" step.
