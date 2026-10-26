@@ -3,7 +3,7 @@
 **Date:** 2026-10-25 · **Status:** Draft for approval · **Owner:** Aamir Khan
 
 This document is everything a builder needs to plan the first version. The
-reasoning behind each choice is in `docs/decisions/` (D1–D21, linked as
+reasoning behind each choice is in `docs/decisions/` (D1–D22, linked as
 "Dn"). Where this document and a decision file disagree, this document wins.
 
 ---
@@ -23,7 +23,8 @@ The tracker makes it impossible to forget a bill:
 **Who it's for.** A household first: in Aamir's, the parents manage pooled
 household bills, and each member handles their own credit cards and personal
 expenses. It must also work for a single person, and for any household, not
-just this one (D2).
+just this one (D2). Other households get there by running **their own copy**
+from the public repo; this copy is invite-only (D22).
 
 **What success looks like.**
 - Nobody in the household gets a late notice because a bill was forgotten.
@@ -53,6 +54,8 @@ just this one (D2).
 - Native iPhone app, Android, or Windows (D4, D5).
 - Multiple currencies (USD only).
 - Belonging to more than one household at a time.
+- Open sign-up, and a "deploy your own copy" setup guide. The guide comes
+  later (D22).
 
 **Anti-goals**
 - **Clutter or repeated information.** If the calendar colors already show
@@ -99,6 +102,18 @@ just this one (D2).
   and GitHub Actions secrets (D9).
 
 ## 5. People, households, and roles
+
+**Who can sign in (D22).** This copy is invite-only. An email can sign in
+only if it:
+- already has an account,
+- has a pending household invite, or
+- is on a short **approved list** the admin manages directly in the database
+  (no screen in v1).
+
+For any other email, **no email is sent at all**, and the app shows a neutral
+"If this email has access, a code is on its way" message. This must be
+enforced on the server. It protects the Gmail sender from abuse and
+suspension.
 
 **Accounts (D18).**
 - Sign in with an email address and a 6-digit emailed code. No passwords.
@@ -414,6 +429,9 @@ without a policy. The rules:
 - A former member **immediately** loses read access to household data.
 - Invites can be accepted **only** by an account whose email matches the
   invite. Accepting is the only path into a household.
+- Sign-in codes are sent **only** to allowed emails (D22): existing accounts,
+  pending invites, or the admin's approved list. A test must prove that an
+  unknown email triggers no email and creates no account.
 - Last-owner protections are enforced in the database, not just the UI.
 - **Automated tests** prove these rules against the real policies:
   - a member can't read another member's personal bills,
