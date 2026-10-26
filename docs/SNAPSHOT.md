@@ -88,6 +88,7 @@ discussed).
 | [D19](decisions/019-joining-a-household.md) | **Joining = an owner invites by email.** The invitee signs in with that email and taps Accept. **Rejoining = being invited again** (no request button). Invites expire in 7 days and can be cancelled. Ruled out: shareable links and join codes. (Claude's recommendation; Aamir asked for it.) | Decided |
 | [D20](decisions/020-tech-stack.md) | **Supabase** (free) for the database, sign-in codes, and the daily job. A **dedicated Gmail account** sends all email. **React + TypeScript**, installable on the home screen. **Free static hosting** (e.g. Cloudflare Pages). Free-plan catches are handled with a daily keep-alive (it pauses after 1 week idle) and our own encrypted weekly backups (no backups on free). Firebase was ruled out: no 6-digit email code. | Decided |
 | [D21](decisions/021-other-screens.md) | **Other screens, mocked up.** The Settings look (grouped rows, one thing per line) sets the style everywhere. Pay sheet: pre-filled, one tap; if the amount differs, a quiet "Use $X from now on" switch. New bill: one calm page (name, Household/Mine, then Amount / Due / Category; extras under "More details"). Edit bill: history as a timeline. Settings and the owner household view approved. | Decided |
+| [D22](decisions/022-who-can-sign-up.md) | **Invite-only sign-up.** Only existing accounts, invited emails, or an admin-approved list can sign in; unknown emails get no email at all (protects the Gmail sender). **Other households run their own copy** from the public repo (setup guide later, not v1). | Decided |
 
 ## Facts about the household (from Aamir)
 
@@ -144,8 +145,8 @@ and the invite details. Any new calls go in a fresh list here.
 ## Open topics, in suggested order
 
 1. The design doc is drafted at [`docs/design.md`](design.md), and the
-   reviewer check is done. One question is pending (who can sign up). After
-   that: Aamir's approval, then the implementation plan.
+   reviewer check is done, and its one open question is answered (D22).
+   Next: Aamir's approval, then the implementation plan.
 
 ## Next step
 
