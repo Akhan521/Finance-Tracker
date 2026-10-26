@@ -128,6 +128,11 @@ just this one (D2).
 - One owner can remove or demote another, but the **last owner** can't be
   removed or demoted, and can't leave or delete their account without first
   making someone else an owner.
+- **Exception: a sole member.** If the last owner is the household's only
+  member, they can **delete the household** instead. There's a warning and an
+  export offer first. Then all household bills, entries, payments, categories,
+  invites, and history are deleted. This is the only way a household ends.
+  (Claude's call, from the builder check.)
 
 **Joining (D19).**
 - An owner invites by email.
@@ -157,7 +162,10 @@ just this one (D2).
 
 **Bill** (D10, D21): set up once. It has:
 - **name**,
-- **scope**: household or personal (owner = the creator),
+- **scope**: household or personal (owner = the creator). Scope is **fixed
+  at creation.** Switching it would expose or hide past payments, so the Edit
+  page doesn't offer it. To move a bill, archive it and add it again. (Claude's
+  call.)
 - **category**,
 - **usual amount**,
 - **schedule**,
@@ -185,7 +193,7 @@ that "last 4" is exactly four digits.
 - **paid**:
   - a regular bill is paid once any payment is recorded;
   - a credit card is paid once its recorded payments total at least that
-    cycle's minimum.
+    cycle's minimum (or on any payment if no minimum was entered).
 - **overdue**: unpaid, and the due date has passed (from the day after the due
   date, in the household's time zone).
 - **upcoming**: unpaid and not yet overdue.
@@ -205,10 +213,18 @@ that "last 4" is exactly four digits.
   directly.
 
 **Credit cards.**
-- The pay sheet asks for this cycle's **minimum due**, optionally the
-  **statement balance**, and the **amount paid**.
+- The pay sheet asks for this cycle's **minimum due** and **statement balance**
+  (both optional), and the **amount paid**.
 - It shows "Minimum covered ✓" once covered.
-- If the minimum isn't entered, treat the usual amount as the expected amount.
+- **If a minimum is entered,** the entry is paid once payments total at least
+  that minimum.
+- **If no minimum is entered,** any payment marks it paid, the same as a
+  regular bill.
+- **For totals and reminders,** the expected amount is the minimum if entered,
+  otherwise the usual amount.
+- **The minimum can be saved before paying.** Open the pay sheet, type the
+  minimum, and close it without paying; it's kept, so totals and reminder
+  emails use the real figure. (Claude's calls, from the builder check.)
 
 **Undo.** A mis-tapped payment can be removed from the entry or bill, and the
 removal goes in the history. (Claude's call; mis-taps will happen.)
@@ -225,7 +241,8 @@ removal goes in the history. (Claude's call; mis-taps will happen.)
   - bills: creation, edits (including amount changes with old and new
     values), archive and restore,
   - payments: added or removed,
-  - membership: invites, joins, leaves, removals, and role changes.
+  - membership: invites, joins, leaves, removals, role changes, and household
+    deletion.
 - Household bill history is visible to household members; personal bill
   history only to its owner.
 
@@ -250,8 +267,13 @@ removal goes in the history. (Claude's call; mis-taps will happen.)
   - a **calendar / donut** icon switch,
   - **+** (new bill),
   - a **gear** (settings).
-- Below it, a **Household / Mine** switch. "Mine" shows only the signed-in
-  person's personal bills.
+- Below it, a **Household / Mine** switch:
+  - "Household" shows **only shared household bills**.
+  - "Mine" shows **only the signed-in person's personal bills**.
+  - The two are never mixed on one calendar.
+  - The app reopens on whichever view the person used last, so someone who
+    mostly tracks their own cards lands on Mine.
+  - The totals and the donut follow the selected view. (Claude's call.)
 - A month grid. Days with bills are filled with their status color; a day with
   mixed statuses shows the most urgent (overdue > upcoming > paid). Today is
   outlined.
@@ -308,6 +330,7 @@ removal goes in the history. (Claude's call; mis-taps will happen.)
 - Archived bills.
 - Household → the household screen. "Create household" appears if there
   isn't one.
+- A sole member also sees "Delete household" on the household screen.
 - Account:
   - display name,
   - sign out of all devices,
