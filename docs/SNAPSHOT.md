@@ -1,25 +1,27 @@
 # Project Snapshot
 
-**Last updated:** 2026-10-22 (end of brainstorming session 3)
+**Last updated:** 2026-10-25 (end of session 4: design approved)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
 [`docs/decisions/`](decisions/) (linked from the table below), and what the
-household needs is in [`docs/requirements.md`](requirements.md). This file is
-the short version plus where we are.
+household needs is in [`docs/requirements.md`](requirements.md). **The
+approved design, the single source of truth for building, is
+[`docs/design.md`](design.md).** This file is the short version plus where we
+are.
 
 ---
 
 ## Paste-in prompt for a new session
 
 > I'm building a household bill/finance tracker in this repo
-> (`~/Developer/finance-tracker`). We're still in **brainstorming/planning**.
-> No code has been written yet. Read `docs/SNAPSHOT.md`, then open any
-> decision file in `docs/decisions/` you need the details of, and continue the
-> brainstorming from "Next step" below. Record each new decision (with
-> trade-offs and why) as a new file `docs/decisions/NNN-short-slug.md`, add it
-> to the table in this snapshot, commit each one as a small separate commit,
-> and update this snapshot at the end of the session.
+> (`~/Developer/finance-tracker`). Brainstorming is done and the design is
+> **approved** (`docs/design.md`). No code has been written yet. Read
+> `docs/SNAPSHOT.md` and `docs/design.md`, then continue from "Next step"
+> below. Record any new decision (with trade-offs and why) as a new file
+> `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
+> commit in small separate commits, and update this snapshot at the end of
+> the session.
 
 ---
 
@@ -37,19 +39,26 @@ not money. Core needs:
 
 ## Where we are
 
-- **Stage:** Brainstorming. Following the superpowers brainstorming process:
-  questions → playback → written design doc → reviewer check → approval →
-  implementation plan. **Nothing gets built until the design doc is
-  approved.**
+- **Stage:** **Design approved (2026-10-25).** The next stage is the
+  implementation plan. Brainstorming followed the superpowers process:
+  questions → playback → written design → reviewer check → approval.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
-  file), `docs/requirements.md`, and `docs/decisions/` (one file per decision,
-  D1–D16).
+  file), `docs/design.md` (approved design), `docs/requirements.md`, and
+  `docs/decisions/` (one file per decision, D1–D22).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
 - **Session 3:** data retention, leaving/rejoining/removing members, account
   deletion, and reminder timing were settled (D12–D16). It ended mid-question
   on how reminders are delivered.
+- **Session 4:**
+  - The decision log was split into one file per decision.
+  - Settled: reminder delivery (D17), sign-in (D18), joining (D19), the
+    tech stack after researching Supabase and Firebase (D20), the other
+    screens via mockups (D21), and invite-only sign-up (D22).
+  - All of Claude's calls were confirmed.
+  - The design doc was written, reviewed by a builder-check subagent (its
+    gaps were settled), moved to `docs/design.md`, and **approved**.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -142,29 +151,30 @@ and the invite details. Any new calls go in a fresh list here.
 - **Keeping a deleted account's name on household history:** "delete" should
   mean gone.
 
-## Open topics, in suggested order
+## Open topics
 
-1. The design doc is drafted at [`docs/design.md`](design.md), and the
-   reviewer check is done, and its one open question is answered (D22).
-   Next: Aamir's approval, then the implementation plan.
+None. Everything needed to plan the build is decided.
 
 ## Next step
 
-Resume on **reminder delivery**. The question left pending:
-
-> Phone notifications need each person to add the app to their iPhone home
-> screen and tap "Allow notifications" once; otherwise nothing arrives. Email
-> needs no setup but lands in the same inbox where late notices already got
-> lost. Claude suggested phone notifications as the main channel, with email
-> as an optional backup per person. **Would Aamir's parents be comfortable
-> with the one-time home-screen setup, or is email the safer bet for them?**
-
-Then move on to sign-in and joining a household.
+**Write the implementation plan** from `docs/design.md` (superpowers
+`writing-plans` skill):
+- A step-by-step build order in small, meaningful commits.
+- Save it at `docs/plan.md` (flat `docs/` layout; Aamir prefers it over
+  nested skill paths).
+- Start with the "verify early" items in design §11:
+  1. Gmail SMTP from Supabase,
+  2. keep-alive versus free-plan pausing,
+  3. a ~10-minute OTP expiry,
+  4. home-screen install plus code sign-in.
+- Security tests for the access rules (design §9) are acceptance criteria.
 
 ## Working conventions
 
 - Design taste: minimal, quiet, no repeated information, cream and pastels.
   Aamir prefers reacting to visual mockups for anything on screen.
+- Docs live flat under `docs/` (`design.md`, `plan.md`, `decisions/`), not
+  in nested skill-default folders.
 - Small, meaningful commits, including for planning docs. One decision per
   commit where practical.
 - Each decision gets its own file, `docs/decisions/NNN-short-slug.md`, under
