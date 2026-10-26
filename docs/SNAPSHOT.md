@@ -143,8 +143,9 @@ and the invite details. Any new calls go in a fresh list here.
 
 ## Open topics, in suggested order
 
-1. Write the design doc (`docs/superpowers/specs/YYYY-MM-DD-finance-tracker-design.md`),
-   run the reviewer check, get approval, then write the implementation plan.
+1. The design doc is drafted at [`docs/design.md`](design.md), and the
+   reviewer check is done. One question is pending (who can sign up). After
+   that: Aamir's approval, then the implementation plan.
 
 ## Next step
 
