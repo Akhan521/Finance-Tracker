@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-10-25 (end of session 4: design approved)
+**Last updated:** 2026-10-26 (end of session 5: implementation plan written)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -15,9 +15,10 @@ are.
 ## Paste-in prompt for a new session
 
 > I'm building a household bill/finance tracker in this repo
-> (`~/Developer/finance-tracker`). Brainstorming is done and the design is
-> **approved** (`docs/design.md`). No code has been written yet. Read
-> `docs/SNAPSHOT.md` and `docs/design.md`, then continue from "Next step"
+> (`~/Developer/finance-tracker`). Brainstorming is done, the design is
+> **approved** (`docs/design.md`), and the implementation plan is written
+> (`docs/plan.md`). No code has been written yet. Read `docs/SNAPSHOT.md`,
+> `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
 > commit in small separate commits, and update this snapshot at the end of
@@ -39,12 +40,14 @@ not money. Core needs:
 
 ## Where we are
 
-- **Stage:** **Design approved (2026-10-25).** The next stage is the
-  implementation plan. Brainstorming followed the superpowers process:
-  questions → playback → written design → reviewer check → approval.
+- **Stage:** **Implementation plan written (2026-10-26), awaiting Aamir's
+  review.** The next stage is building, starting with the verify-early
+  checks. Brainstorming followed the superpowers process: questions →
+  playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
-  file), `docs/design.md` (approved design), `docs/requirements.md`, and
-  `docs/decisions/` (one file per decision, D1–D22).
+  file), `docs/design.md` (approved design), `docs/plan.md` (implementation
+  plan), `docs/requirements.md`, and `docs/decisions/` (one file per
+  decision, D1–D28).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -59,6 +62,19 @@ not money. Core needs:
   - All of Claude's calls were confirmed.
   - The design doc was written, reviewed by a builder-check subagent (its
     gaps were settled), moved to `docs/design.md`, and **approved**.
+- **Session 5:**
+  - Wrote `docs/plan.md` with the superpowers `writing-plans` skill: 5 phases,
+    30 tasks, each ending in a small commit.
+  - The plan starts with the four design §11 checks (V1–V4) plus a fifth,
+    V5: proving the invite-only gate sends nothing to unknown emails.
+  - Each §9 security rule maps to a named test file.
+  - Checked the free-plan facts the plan depends on:
+    - Supabase's "Before User Created" auth hook is on the Free plan.
+    - GitHub turns off scheduled workflows in public repos after 60 days
+      without activity.
+    - Backblaze B2 has 10 GB free with no card.
+  - Builder decisions recorded as D23–D28 (Claude's calls, listed below for
+    review).
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -129,7 +145,33 @@ All of Claude's calls through D21 were reviewed and **confirmed by Aamir on
 minimum rule, one month at a time, tap a day for its bills, control placement,
 per-person reminder settings, a single overdue reminder, the deletion heads-up
 and adjustable window, owners managing owners, sign-in code/session details,
-and the invite details. Any new calls go in a fresh list here.
+and the invite details.
+
+**New calls from session 5 (not yet reviewed by Aamir):**
+- D23–D28 as a whole: how the server enforces invite-only and 30-day
+  sessions, the testing setup, stored entries, backups, the job watchdog,
+  and the app tooling.
+- **Totals count what's still owed.** "Overdue" and "left" use the expected
+  amount minus anything already paid on that entry. A partial credit card
+  payment is then not counted as both paid and owed. (Design §7 said
+  "expected amounts.")
+- **Household reminders start off; personal reminders start on.** The
+  parents turn household ones on, as §8 describes.
+- **The retention heads-up is sent once per household or person,** the first
+  time data nears the window, and again only if the window is changed. A
+  monthly email after year 3 would break "quiet."
+- **Overdue reminders are skipped for bills more than 7 days late.** Turning
+  reminders back on after months then doesn't send a flood.
+- **At most 10 pending invites per household,** to protect the Gmail
+  sender.
+- **Deleting a household leaves no history event,** because all its history
+  is deleted with it.
+- **The working name is "Bills"** (one constant; rename anytime).
+- **A sole member must delete the household before deleting their
+  account.** The database blocks it otherwise, the same way it blocks a
+  last owner.
+
+Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
 
@@ -163,17 +205,15 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-**Write the implementation plan** from `docs/design.md` (superpowers
-`writing-plans` skill):
-- A step-by-step build order in small, meaningful commits.
-- Save it at `docs/plan.md` (flat `docs/` layout; Aamir prefers it over
-  nested skill paths).
-- Start with the "verify early" items in design §11:
-  1. Gmail SMTP from Supabase,
-  2. keep-alive versus free-plan pausing,
-  3. a ~10-minute OTP expiry,
-  4. home-screen install plus code sign-in.
-- Security tests for the access rules (design §9) are acceptance criteria.
+1. **Aamir reviews `docs/plan.md`**, the new calls above, and D23–D28, and
+   picks an execution approach (subagent-driven or native; see the end of
+   this session's summary).
+2. **Then build from Task 1**, then the verify-early checks V1–V5. V2 needs
+   at least 8 days of watching, so start it early and carry on with Phase 2
+   while it runs.
+3. **Aamir does the account steps** marked "(Aamir)": Gmail, Supabase,
+   Cloudflare, Backblaze, the `age` key, and the iPhone checks.
+4. **Ask before every push.** The first push happens in V2.
 
 ## Working conventions
 
