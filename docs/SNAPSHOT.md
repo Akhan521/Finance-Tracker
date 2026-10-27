@@ -100,6 +100,7 @@ discussed).
 | [D22](decisions/022-who-can-sign-up.md) | **Invite-only sign-up.** Only existing accounts, invited emails, or an admin-approved list can sign in; unknown emails get no email at all (protects the Gmail sender). **Other households run their own copy** from the public repo (setup guide later, not v1). | Decided |
 | [D23](decisions/023-server-side-sign-in-rules.md) | **Invite-only is enforced by a "Before User Created" auth hook** (Free plan) that allows only pending invites and the `approved_emails` list. Emails are compared lowercased. **30-day sessions** come from a daily cleanup of old sessions. Fallback if the hook leaks email: turn off sign-ups and create accounts on invite. (Claude's call.) | Decided |
 | [D24](decisions/024-testing-setup.md) | **Testing:** a local Supabase in Docker plus Vitest. The security tests sign in as real test users and attack each other's data through the real API. GitHub Actions runs everything, plus a secret scan, on every push. (Claude's call.) | Decided |
+| [D25](decisions/025-how-entries-are-stored.md) | **Entries are stored 12 months ahead**, made by one SQL schedule function. **Status is computed by a view, never stored.** Schedule changes and archiving replace only untouched future entries. (Claude's call.) | Decided |
 
 ## Facts about the household (from Aamir)
 
