@@ -20,7 +20,7 @@ Router, TanStack Query, Vitest + Testing Library, nodemailer (in Edge
 Functions), GitHub Actions, Backblaze B2, `age`, Cloudflare Pages (wrangler).
 
 **Spec:** `docs/design.md` (approved 2026-10-25). Builder decisions made for
-this plan: D23–D31 in `docs/decisions/`. Read both before starting a task.
+this plan: D23–D32 in `docs/decisions/`. Read both before starting a task.
 
 ## Global Constraints
 
@@ -31,6 +31,12 @@ this plan: D23–D31 in `docs/decisions/`. Read both before starting a task.
   - Never commit secrets, keys, `.env` files, real names or emails, or
     database dumps.
   - Test data uses random `@test.local` addresses.
+  - **Nothing identifies the live deployment (D32).** Never commit the
+    Supabase project URL or ref, the Pages project name or address, the
+    sender Gmail address, the backup bucket name, or family emails. These
+    values live in `.env.production.local` and the dashboards. Docs,
+    including `verify-early.md` and `operations.md`, use placeholders like
+    `<project-ref>`.
   - Action logs and artifacts are public: never print secrets or data, and
     never `upload-artifact` a dump.
 - **Only the publishable key (`sb_publishable_…`) ships in the app (D30).**
@@ -73,8 +79,8 @@ this plan: D23–D31 in `docs/decisions/`. Read both before starting a task.
 
 ## Review Focus
 
-1. **Email addresses typed differently** (`" Mom@Gmail.com"` vs an invite to
-   `mom@gmail.com`). The sign-up gate, invites, and accepting must all treat
+1. **Email addresses typed differently** (`" Mom@Example.com"` vs an invite to
+   `mom@example.com`). The sign-up gate, invites, and accepting must all treat
    them as the same address. *Tests: V5 and Task 3.*
 2. **Time-zone edges.** A bill due today is still *upcoming* at 11 p.m.
    Pacific, even though it's already tomorrow in UTC. Reminders use the
@@ -131,7 +137,9 @@ raise it with Aamir before building on it.
 .github/workflows/daily-health.yml  keep-alive + watchdog + workflow re-enable (Task 23)
 .github/workflows/backup.yml        weekly encrypted dump to B2 (Task 24)
 docs/plan.md · docs/verify-early.md · docs/operations.md (setup, secrets, restore)
-public/                              icons (192, 512, apple-touch 180); _headers with CSP (Task 20)
+public/                              icons (192, 512, apple-touch 180)
+scripts/deploy.mjs                   build, fill _headers from _headers.template, wrangler deploy (V4, Task 20)
+_headers.template                    security headers with a __SUPABASE_URL__ placeholder (Task 20)
 src/
   main.tsx · App.tsx                 router, QueryClient, session gate
   lib/config.ts                      APP_NAME, env reads (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)
@@ -285,6 +293,7 @@ test('APP_NAME is Bills', async () => {
   `supabase/config.toml`:
   - `[auth] enable_signup = true`, `jwt_expiry = 3600`,
     `enable_anonymous_sign_ins = false`.
+  - `[auth.rate_limit] email_sent = 10` (per hour, D32).
   - `[auth.email] enable_confirmations = true`, `double_confirm_changes = true`,
     `otp_length = 6`, `otp_expiry = 600`, `max_frequency = "60s"`.
   - `[auth.email.template.magic_link]` and `[auth.email.template.confirmation]`
@@ -378,8 +387,9 @@ results in `docs/verify-early.md`.
 
 - [ ] **Step 1: Set project A's Auth settings** to match `config.toml`
   (Task 1 Step 7): Email OTP expiration `600`, OTP length `6`, Confirm
-  email ON, Secure email change ON, anonymous sign-ins OFF, and all other
-  providers OFF. Copy each setting into the operations checklist.
+  email ON, Secure email change ON, anonymous sign-ins OFF, all other
+  providers OFF, and **rate limit for sending emails `10` per hour** (D32).
+  Copy each setting into the operations checklist.
 - [ ] **Step 2: Expiry.** Request a code, wait 11 minutes, and enter it.
   Expected: rejected (`otp_expired` or similar). Request a fresh code and
   enter it within 2 minutes. Expected: signed in. Enter the same code
@@ -407,6 +417,7 @@ results in `docs/verify-early.md`.
 
 **Files:**
 - Create: `src/auth/SignIn.tsx`, `src/auth/SignIn.test.tsx`, `src/auth/useSession.ts`, `src/lib/supabase.ts`, `src/ui/theme.css` (first tokens), `public/` icons
+- Create (also): `scripts/deploy.mjs`
 - Modify: `vite.config.ts` (PWA), `src/App.tsx`, `package.json` (`deploy` script)
 
 **Interfaces:**
@@ -451,11 +462,15 @@ test('sends the device time zone as signup data', …); // options.data.time_zon
   - Add `apple-touch-icon` 180 and `apple-mobile-web-app-capable` meta
     tags.
 - [ ] **Step 6: Deploy.**
-  - Add the script `"deploy": "npm run build && wrangler pages deploy dist --project-name bills"`.
+  - Add `"deploy": "node scripts/deploy.mjs"`. The script loads
+    `.env.production.local` with Vite's `loadEnv`, then runs `npm run build`
+    and `wrangler pages deploy dist --project-name <PAGES_PROJECT>`. It
+    fails with a clear message if `PAGES_PROJECT` or `VITE_SUPABASE_URL`
+    is missing. The project name stays out of the repo (D32).
   - Aamir logs in with `npx wrangler login` (free Cloudflare account, no
     card).
-  - Put project A's URL and publishable key in `.env.production.local`
-    (git-ignored).
+  - Put project A's URL, publishable key, and `PAGES_PROJECT` in
+    `.env.production.local` (git-ignored).
   - Set project A's Auth Site URL to the `*.pages.dev` address.
   - Run `npm run deploy`.
 - [ ] **Step 7 (Aamir, on iPhone):**
@@ -1221,15 +1236,17 @@ test('csv neutralizes formulas and quotes commas, quotes and newlines', () => {
   `npx supabase functions deploy invite delete-account`. Set secrets
   (`APP_URL`, SMTP vars, `MAIL_FROM_NAME`) with `npx supabase secrets set`.
   Record each name (not its value) in `docs/operations.md`.
-- [ ] **Step 2: Security headers.** Add a static `public/_headers` for `/*`:
-  - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://<project-ref>.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
+- [ ] **Step 2: Security headers.** Add `_headers.template` at the repo
+  root, for `/*`. `scripts/deploy.mjs` copies it to `dist/_headers` after
+  the build, replacing `__SUPABASE_URL__` with `VITE_SUPABASE_URL` (D32):
+  - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' __SUPABASE_URL__; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
   - `Strict-Transport-Security: max-age=31536000`
   - `X-Content-Type-Options: nosniff`
   - `Referrer-Policy: no-referrer`
   - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
-  The project URL isn't secret. Another copy of the app edits this one
-  line.
+  The project URL isn't secret, but keeping it out of the repo keeps the
+  repo from leading anyone to the live app.
 - [ ] **Step 3:** Run `npm run deploy`, then `curl -sI <pages url>`.
   Expected: all the headers. Open the app on iPhone and Mac Safari.
   Expected: no CSP errors in the console (Mac Web Inspector).
