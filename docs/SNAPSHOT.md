@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-10-28 (session 5, continued: plan revised after an adversarial review)
+**Last updated:** 2026-10-28 (end of session 5: plan revised after review, security-checked, and pushed)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -47,7 +47,7 @@ not money. Core needs:
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
   plan), `docs/requirements.md`, and `docs/decisions/` (one file per
-  decision, D1–D31).
+  decision, D1–D32).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -100,6 +100,16 @@ not money. Core needs:
     - two single-use tables.
   - The invite limit now counts invites sent per day.
   - The plan is now 29 tasks.
+  - **Pre-push security check:** all git history was scanned. No secrets,
+    keys, project URLs, or dumps; only general household facts and Aamir's
+    commit email. Publishing the design is safe, because its security
+    doesn't depend on secrecy.
+  - Two rules came out of the check (D32):
+    - nothing in the repo identifies the live deployment (the deploy script
+      fills those values in from git-ignored files),
+    - Supabase Auth sends at most 10 emails an hour, so code-request spam
+      to Aamir's public email can't use up Gmail's daily limit.
+  - Everything is pushed to `origin/main`.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -236,7 +246,7 @@ None. Everything needed to plan the build is decided.
 ## Next step
 
 1. **Aamir reviews the revised `docs/plan.md`**, the new calls above, and
-   D23–D31, and picks an execution approach: subagent-driven
+   D23–D32, and picks an execution approach: subagent-driven
    (recommended) or native.
 2. **Then build from Task 1**, then the verify-early checks V1, V3, V4,
    and V5.
