@@ -33,3 +33,12 @@ from cancelled or expired invites must be cleaned up.
 - **Checking in the app only:** bypassed by one direct API call.
 - **A custom "request code" function in front of Auth:** the Auth endpoint
   would still be reachable directly with the public key.
+
+**Update (2026-10-28, plan review).** One more test decides between the hook
+and the fallback:
+1. An attacker signs up an invited email with a password.
+2. The real person then signs in with an emailed code.
+3. The attacker's password must not work.
+
+If it does work, use the fallback: turn off sign-ups and create accounts
+from the invite function.
