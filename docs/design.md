@@ -494,6 +494,8 @@ without a policy. The rules:
 1. That Gmail SMTP works from Supabase Auth and from an Edge Function (app
    password, limits).
 2. That the keep-alive plus the daily job prevent free-plan pausing.
+   *(Update 2026-10-28, D31: checked on the live project during its first
+   3 weeks, not in an early test.)*
 3. That Supabase's OTP expiry can be set to ~10 minutes and that its rate
    limits behave as expected.
 4. That the web app installs to the iPhone home screen and sign-in codes work
