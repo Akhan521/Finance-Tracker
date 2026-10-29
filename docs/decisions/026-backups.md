@@ -27,3 +27,14 @@ GitHub, with about 8 weeks kept. It must be free.
   CI, and it would mix the email sender with the backups.
 - **A shared password (symmetric encryption) stored as a GitHub secret:** the
   backup and the key that opens it would both sit in one place, GitHub.
+
+**Update (2026-10-28, plan review).** Three fixes:
+- **The `backup_reader` role also gets `BYPASSRLS`.** `pg_read_all_data`
+  alone doesn't get past the row-level security rules, so the backup would
+  have come out empty.
+- **Live sign-in tables are left out of the dump** (sessions, refresh tokens,
+  one-time tokens, flow state, the auth audit log). A leaked backup then
+  holds no working logins. After a restore, everyone signs in again.
+- **Restores use Supabase's documented method:** set
+  `session_replication_role = replica`, then load the data. This works on a
+  hosted project too, unlike `--disable-triggers`.
