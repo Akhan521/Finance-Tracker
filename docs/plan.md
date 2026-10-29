@@ -11,7 +11,7 @@ database.
 Supabase with the public key. Postgres row-level security is the security
 boundary. Every write that spans rows or needs extra checks goes through a
 `security definer` SQL function. Three Edge Functions need secrets: invite
-email, account deletion, and the hourly reminder run. GitHub Actions run CI,
+email, account deletion, and the daily reminder run. GitHub Actions run CI,
 a daily keep-alive and watchdog, and a weekly encrypted backup.
 
 **Tech Stack:** Supabase (Postgres 17, Auth email OTP, Edge Functions/Deno,
@@ -20,7 +20,7 @@ Router, TanStack Query, Vitest + Testing Library, nodemailer (in Edge
 Functions), GitHub Actions, Backblaze B2, `age`, Cloudflare Pages (wrangler).
 
 **Spec:** `docs/design.md` (approved 2026-10-25). Builder decisions made for
-this plan: D23–D28 in `docs/decisions/`. Read both before starting a task.
+this plan: D23–D31 in `docs/decisions/`. Read both before starting a task.
 
 ## Global Constraints
 
@@ -33,9 +33,12 @@ this plan: D23–D28 in `docs/decisions/`. Read both before starting a task.
   - Test data uses random `@test.local` addresses.
   - Action logs and artifacts are public: never print secrets or data, and
     never `upload-artifact` a dump.
-- **Only the public anon key ships in the app.** The service-role key
-  exists only in Supabase's Edge Function environment (it's injected
-  automatically). GitHub Actions never get the service-role key (D27, D26).
+- **Only the publishable key (`sb_publishable_…`) ships in the app (D30).**
+  Secret keys (`sb_secret_…`) exist only in Supabase's Edge Function
+  secrets. GitHub Actions never get a secret API key (D26, D27).
+- **Every Edge Function that acts for a user gets the caller's ID** from
+  `auth.getUser(token)` using the request's own access token. It never
+  takes an ID from the request body.
 - **RLS on every table in `public`; no exceptions.**
   - Clients get only the column grants listed in this plan.
   - Every `security definer` function sets `search_path = ''`, uses
@@ -84,7 +87,8 @@ this plan: D23–D28 in `docs/decisions/`. Read both before starting a task.
    `-5`, `0`, empty). Parse to cents or refuse clearly; never store a float
    or a negative. *Tests: Task 10.*
 5. **Repeated or overlapping reminder runs** (cron retry, a manual rerun,
-   two at once) never send a duplicate. A failed send is retried next hour.
+   two at once) never send a duplicate. A failed send is retried the next
+   day.
    *Tests: Task 21.*
 
 ---
@@ -94,14 +98,13 @@ this plan: D23–D28 in `docs/decisions/`. Read both before starting a task.
 | Phase | Tasks | Outcome |
 |---|---|---|
 | 0. Groundwork | 1 | Repo, tooling, CI, secret scan |
-| 1. Verify early (design §11) | V1–V5 | Gmail SMTP, pausing, OTP limits, iPhone install, invite-only gate proven on real services |
+| 1. Verify early (design §11) | V1, V3–V5 | Gmail SMTP, OTP limits, iPhone install, invite-only gate proven on real services (pausing: Task 25, D31) |
 | 2. Database and security | 2–9 | Schema, RLS, SQL functions, every §9 security test green |
 | 3. App | 10–20 | All screens from design §7 |
 | 4. Jobs and operations | 21–24 | Reminders, retention, watchdog, backups |
-| 5. Release | 25–26 | Security headers, production config, acceptance run on iPhones |
+| 5. Release | 25 | Production checklist, acceptance run on iPhones, 3-week pause watch |
 
-**V2 needs at least 8 calendar days of watching.** Start it, then carry on
-with Phase 2 while it runs. Record every verify-early result in
+Record every verify-early result in
 `docs/verify-early.md` (one section per check: date, what was done, result,
 anything that changes the plan). If a result breaks an assumption, stop and
 raise it with Aamir before building on it.
@@ -117,22 +120,21 @@ raise it with Aamir before building on it.
 | Non-invited email can't join; only the matching email can accept | `tests/security/membership.test.ts` · Task 3 |
 | Unknown email gets no email and no account | `tests/security/sign-up-gate.test.ts` · V5, Task 3 |
 | Last-owner protections enforced in the database | `tests/security/membership.test.ts`, `deletion.test.ts` · Tasks 2, 8 |
-| App ships only the anon key; nothing secret committed | `tests/security/schema.test.ts` (bundle scan) + CI gitleaks · Tasks 1, 25 |
+| App ships only the publishable key; nothing secret committed | CI bundle check + GitHub push protection · Tasks 1, 20 |
 
 ---
 
 ## File structure
 
 ```
-.github/workflows/ci.yml            typecheck, unit + db tests, gitleaks (Task 1)
-.github/workflows/daily-health.yml  keep-alive + watchdog + workflow re-enable (V2, Task 23)
+.github/workflows/ci.yml            typecheck, unit + db tests, bundle secret check (Task 1)
+.github/workflows/daily-health.yml  keep-alive + watchdog + workflow re-enable (Task 23)
 .github/workflows/backup.yml        weekly encrypted dump to B2 (Task 24)
 docs/plan.md · docs/verify-early.md · docs/operations.md (setup, secrets, restore)
-public/                              icons (192, 512, apple-touch 180)
-scripts/write-headers.mjs            writes dist/_headers with CSP for the project URL (Task 25)
+public/                              icons (192, 512, apple-touch 180); _headers with CSP (Task 20)
 src/
   main.tsx · App.tsx                 router, QueryClient, session gate
-  lib/config.ts                      APP_NAME, env reads (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+  lib/config.ts                      APP_NAME, env reads (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)
   lib/supabase.ts                    typed client
   lib/database.types.ts              generated: npx supabase gen types typescript --local
   lib/errors.ts                      SQL error key → copy
@@ -148,7 +150,7 @@ supabase/
   config.toml                        local Auth settings mirror production (Task 1, V3, V5)
   templates/code.html                OTP email body: the code, no link
   migrations/*.sql                   one per task, created with `npx supabase migration new <slug>`
-  seed.sql                           local-only Vault values for cron (Task 21)
+  seed.sql                           local-only Vault values and cron jobs (Task 21)
   functions/_shared/email.ts         sendEmail() over SMTP
   functions/_shared/reminder-email.ts  pure: builds reminder/heads-up text (Vitest-tested)
   functions/invite/index.ts · delete-account/index.ts · daily/index.ts
@@ -170,8 +172,8 @@ Every later task relies on these names. They're built in Tasks 2–8 and
 
 | Table | Columns (constraints) | Client access |
 |---|---|---|
-| `profiles` | `id uuid pk → auth.users on delete cascade`, `display_name text null (1–40 chars trimmed)`, `time_zone text not null default 'UTC'`, `remind_household bool default false`, `remind_personal bool default true`, `lead_days int default 7 (1–14)`, `retention_months int null default 36 (12–120; null = never)`, `last_view text default 'household' ('household'\|'mine')`, `created_at` | select self + same-household; update own (all listed columns except `id`, `created_at`) |
-| `households` | `id uuid pk`, `name text (1–40)`, `time_zone text not null`, `retention_months int null default 36 (12–120)`, `created_at` | select members; update owners (`name`, `retention_months`) |
+| `profiles` | `id uuid pk → auth.users on delete cascade`, `display_name text null (1–40 chars trimmed)`, `time_zone text not null default 'UTC'`, `remind_household bool default false`, `remind_personal bool default true`, `lead_days int default 7 (1–14)`, `retention_months int null default 36 (12–120; null = never)`, `last_view text default 'household' ('household'\|'mine')`, `heads_up_sent_at timestamptz null`, `created_at` | select self + same-household; update own (all listed columns except `id`, `heads_up_sent_at`, `created_at`) |
+| `households` | `id uuid pk`, `name text (1–40)`, `time_zone text not null`, `retention_months int null default 36 (12–120)`, `heads_up_sent_at timestamptz null`, `created_at` | select members; update owners (`name`, `retention_months`) |
 | `memberships` | `household_id → households cascade`, `profile_id → profiles cascade`, `role text ('owner'\|'member')`, `joined_at`; pk `(household_id, profile_id)`; unique `(profile_id)` | select members + self; update `role` owners; delete owners or self |
 | `approved_emails` | `email text pk (lowercase)` | none (admin via SQL editor) |
 | `invites` | `id uuid pk`, `household_id → households cascade`, `email text (lower/trim, basic shape, ≤254)`, `invited_by → profiles set null`, `created_at`, `expires_at default now()+7 days`, `accepted_at`, `cancelled_at`; unique pending `(household_id, email)` | select/insert owners; update `cancelled_at` owners |
@@ -181,9 +183,7 @@ Every later task relies on these names. They're built in Tasks 2–8 and
 | `payments` | `id uuid pk`, `entry_id → entries cascade`, `amount_cents bigint (1–99,999,999)`, `paid_on date`, `paid_by uuid null → profiles set null` (forced to `auth.uid()` by trigger), `created_at` | select/insert (`entry_id, amount_cents, paid_on`)/delete in scope |
 | `history` | `id bigint identity`, `household_id null → households cascade`, `owner_id null → profiles cascade`, `bill_id null → bills cascade`, `actor_id null → profiles set null`, `kind text`, `detail jsonb default '{}'`, `created_at`; exactly one scope | select in scope; no writes |
 | `job_runs` | `id bigint identity`, `job text ('reminders'\|'maintenance')`, `started_at`, `finished_at`, `ok bool`, `detail text` | none |
-| `digest_sends` | `profile_id → profiles cascade`, `local_date date`; pk both | none |
 | `reminder_sends` | `entry_id → entries cascade`, `profile_id → profiles cascade`, `kind text ('lead'\|'due'\|'overdue')`, `local_date date`, `sent_at`; pk `(entry_id, profile_id, kind)` | none |
-| `heads_up_sends` | `scope_key text pk` (`'household:<uuid>'`/`'personal:<uuid>'`), `sent_at` | none |
 
 "In scope" means `(household_id is not null and public.is_member(household_id)) or owner_id = auth.uid()`;
 for `entries`/`payments` it's via `public.can_access_bill(bill_id)`.
@@ -223,7 +223,6 @@ a minimum entered, else `expected_cents`), and `status` (`'paid' | 'overdue'
 | `account_deletion_blocker() → text` (`null`, `'last_owner'`, `'sole_member'`) | none |
 | `due_dates(p_schedule text, p_every_weeks int, p_anchor date, p_from date, p_through date) → setof date` (immutable, *not* definer) | none |
 | `status_rule(p_is_card bool, p_minimum bigint, p_paid bigint, p_due date, p_today date) → text` (immutable, *not* definer; the one copy of the status rule) | none |
-| `entry_status_at(p_entry uuid, p_now timestamptz) → text` | test-only use; no client execute |
 | `generate_entries(p_bill uuid, p_from date) → void` · `extend_entries() → void` | internal, no client execute |
 | `hook_before_user_created(event jsonb) → jsonb` | `supabase_auth_admin` only |
 | `claim_reminders(p_now timestamptz)` · `release_reminders(p_profile uuid, p_local_date date)` · `claim_heads_ups(p_now timestamptz)` · `record_job_run(p_job text, p_ok bool, p_detail text)` | `service_role` only |
@@ -246,7 +245,7 @@ Other error keys raised by triggers: `last_owner`, `household_needs_member`,
 
 **Interfaces:**
 - Produces: `npm run dev | build | typecheck | test | test:db | deploy`;
-  `APP_NAME = 'Bills'`; `SUPABASE_URL`, `SUPABASE_ANON_KEY` exports from
+  `APP_NAME = 'Bills'`; `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` exports from
   `src/lib/config.ts`, which throw at startup if missing.
 
 - [ ] **Step 1: Install a free Docker runtime and confirm it.** Use Docker
@@ -266,7 +265,7 @@ test('config throws a clear error when the Supabase URL is missing', async () =>
   await expect(import('./config?missing')).rejects.toThrow(/VITE_SUPABASE_URL/);
 });
 test('APP_NAME is Bills', async () => {
-  vi.stubEnv('VITE_SUPABASE_URL', 'http://x'); vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'k');
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://x'); vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'k');
   expect((await import('./config')).APP_NAME).toBe('Bills');
 });
 ```
@@ -301,15 +300,20 @@ test('APP_NAME is Bills', async () => {
   - `.gitignore` adds `.env`, `.env.*`, `!.env.example`,
     `supabase/functions/.env`, `supabase/.temp/`, `dist/`, `*.age`,
     `*.sql.gz`, `backup*`.
-  - `.env.example` lists `VITE_SUPABASE_URL=` and `VITE_SUPABASE_ANON_KEY=`.
+  - `.env.example` lists `VITE_SUPABASE_URL=` and `VITE_SUPABASE_PUBLISHABLE_KEY=`.
   - Run `git check-ignore .env .env.production.local supabase/functions/.env`.
     Expected: all three are printed.
 - [ ] **Step 10: CI.** In `ci.yml`, on push and PR: checkout, set up Node,
-  `npm ci`, `npm run typecheck`, `npm test`, `npx supabase start`,
+  `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, then the
+  bundle check `! grep -rE 'sb_secret_|service_role|SMTP_|GMAIL' dist`.
+  Then `npx supabase start -x studio,imgproxy,vector,logflare`,
   `cp supabase/functions/.env.example supabase/functions/.env`,
-  `npx supabase db reset`, `npm run test:db`. Then run gitleaks (download
-  the release binary; `gitleaks detect --redact`). It uses no repository
+  `npx supabase db reset`, `npm run test:db`. It uses no repository
   secrets.
+- [ ] **Step 10b (Aamir): Confirm GitHub push protection is on** (repo
+  Settings → Code security → Secret scanning → Push protection). It blocks
+  known key formats *before* they reach GitHub. It won't recognize a Gmail
+  app password, so never paste one anywhere in the repo.
 - [ ] **Step 11: Start `docs/operations.md`**, with sections Accounts,
   Secrets (name → where it lives, never the value), Production settings
   checklist, and Restore. Each starts empty. Add a README paragraph: what
@@ -367,43 +371,6 @@ results in `docs/verify-early.md`.
   with the date checked).
 - [ ] **Step 8: Commit.** `git add supabase/functions/_shared/email.ts docs/verify-early.md && git commit -m "Verify Gmail SMTP from Supabase Auth and Edge Functions"`
 
-### Task V2: Keep-alive versus free-plan pausing (runs ≥ 8 days in the background)
-
-**Files:**
-- Create: `.github/workflows/daily-health.yml` (first version)
-
-**Interfaces:**
-- Produces: a workflow that reads repo secrets `SUPABASE_URL`,
-  `SUPABASE_ANON_KEY`, and `HEALTH_TOKEN`, and POSTs
-  `/rest/v1/rpc/health_check` with `{"p_token": …}`. Task 23 hardens it.
-
-- [ ] **Step 1 (Aamir):** Create Supabase project **B** ("pause-test",
-  Free), which uses the second free project slot. **Nobody opens its
-  dashboard during the test.**
-- [ ] **Step 2: In B's SQL editor**, create a stand-in health function, a
-  `ping_log(at timestamptz)` table, and a pg_cron job:
-  - `health_check(p_token text) returns jsonb` (returns `{"ok": true}` when
-    the token matches a Vault secret, else raises `forbidden`), granted to
-    `anon`.
-  - The pg_cron job inserts into `ping_log` hourly. It stands in for the
-    hourly reminder job.
-- [ ] **Step 3: Write the workflow.** Triggers: `schedule: cron '30 15 * * *'`
-  and `workflow_dispatch`. One step: `curl --fail-with-body -sS` to the RPC,
-  piped to `jq -e '.ok == true'`.
-  - Never `echo` secrets. Mask the response (`::add-mask::`) before any
-    output.
-- [ ] **Step 4: Commit.** `git add .github/workflows/daily-health.yml && git commit -m "Add the daily keep-alive check"`
-- [ ] **Step 5: Ask Aamir before pushing.** This is the first push of code.
-  Once he agrees, add the repo secrets for project **B**, push, and run the
-  workflow manually. Expected: green run.
-- [ ] **Step 6: Observe for at least 8 days.** Check daily that the Action is
-  green, with no "inactive project" email from Supabase and no pause.
-  Record the result in `verify-early.md` and commit it ("Record the
-  keep-alive result"). **If B gets a pause warning,** stop and revisit D27
-  with Aamir before Task 23.
-- [ ] **Step 7: When done:** delete project B and point the secrets at
-  project A (Task 23 does this).
-
 ### Task V3: OTP expiry, rate limits, and session cleanup
 
 **Files:**
@@ -425,16 +392,16 @@ results in `docs/verify-early.md`.
   the observed number and window. **Note:** it's per IP, not per email;
   record that a 6-digit code with a 10-minute life and this limit leaves
   ≤ ~60 guesses per IP per code.
-- [ ] **Step 5: Session cleanup permission.** In project A's SQL editor, as
-  `postgres`, run
-  `select count(*) from auth.sessions where created_at < now() - interval '30 days';`
-  and a no-op `delete … where false;`. Expected: both succeed.
+- [ ] **Step 5: Permissions later tasks need.** In project A's SQL editor, as
+  `postgres`:
+  - Run `select count(*) from auth.sessions where created_at < now() - interval '30 days';`
+    and a no-op `delete … where false;`. Expected: both succeed (Task 22).
+  - Run `select rolbypassrls from pg_roles where rolname = current_user;`.
+    Expected: `true`, so `postgres` can grant `BYPASSRLS` to the backup role
+    (Task 24). If it's `false`, record it and raise it with Aamir.
   - **If `delete` is denied,** record it. Task 22 then uses the fallback in
     D23: check session age in a Custom Access Token hook, or ask Aamir.
-- [ ] **Step 6: Record** the session-lifetime finding: whether "Time-box
-  user sessions" is available on Free. Expected: it isn't, which confirms
-  the D23 cleanup approach.
-- [ ] **Step 7: Commit.** `git add docs && git commit -m "Verify OTP expiry, rate limits, and session cleanup"`
+- [ ] **Step 6: Commit.** `git add docs && git commit -m "Verify OTP expiry, rate limits, and session cleanup"`
 
 ### Task V4: Installs to the iPhone home screen, and codes work inside it
 
@@ -487,7 +454,7 @@ test('sends the device time zone as signup data', …); // options.data.time_zon
   - Add the script `"deploy": "npm run build && wrangler pages deploy dist --project-name bills"`.
   - Aamir logs in with `npx wrangler login` (free Cloudflare account, no
     card).
-  - Put project A's URL and anon key in `.env.production.local`
+  - Put project A's URL and publishable key in `.env.production.local`
     (git-ignored).
   - Set project A's Auth Site URL to the `*.pages.dev` address.
   - Run `npm run deploy`.
@@ -518,7 +485,7 @@ test('sends the device time zone as signup data', …); // options.data.time_zon
     For now it allows only `approved_emails`; Task 3 adds invites.
   - Test helpers:
     - `sql` (postgres.js as `postgres` on the local DB)
-    - `admin` (service-role client)
+    - `admin` (a client using the local secret key)
     - `anonClient()`
     - `approve(email)`
     - `newUser(opts?: { name?: string }): Promise<TestUser>`, where
@@ -642,8 +609,10 @@ test('a sign-up time zone hint that is not real falls back to UTC', …);
     - cancels the same household and email's *expired* pending invite,
     - raises `already_invited` if an unexpired pending invite already
       exists,
-    - raises `too_many_invites` above 10 pending invites per household
-      (protects the Gmail sender),
+    - raises `too_many_invites` if the household has created 20 invites in
+      the last 24 hours (protects the Gmail sender; counting created
+      invites, not pending ones, so cancel-and-reinvite can't get around
+      it),
     - sets `invited_by = auth.uid()`.
 
 - [ ] **Step 1: Write the failing tests** (in `membership.test.ts` unless
@@ -662,11 +631,17 @@ test('the invited email can accept, with different case', …);  // invite ' Kid
 test('expired and cancelled invites cannot be accepted', …);   // update expires_at via sql → 'invite_not_found'
 test('someone already in a household cannot accept', …);       // 'already_in_household'
 test('a password sign-up for an invited email gets no session until the inbox confirms', …); // auth.signUp({email, password}) → data.session === null; signInWithPassword → error; no membership
+test('a password set by someone else before the real invitee signs in never works', async () => {
+  // attacker: anonClient().auth.signUp({ email: invited, password: 'attacker-pw-123' })
+  // real person: signInWithOtp + verifyOtp for the same email (code from Mailpit)
+  const { error } = await anonClient().auth.signInWithPassword({ email: invited, password: 'attacker-pw-123' });
+  expect(error).not.toBeNull(); // if this fails: stop, switch to D23's fallback with Aamir
+});
 test('a former member immediately loses access to members, names, and invites', …); // m leaves → selects return []
 test('a removed member immediately loses access', …);
 test('owners can promote, demote another owner, and remove a member', …);
 test('the last owner cannot be demoted, even by themselves', …); // 'last_owner'
-test('the 11th pending invite is refused', …);                   // 'too_many_invites'
+test('the 21st invite created in 24 hours is refused, even if earlier ones were cancelled', …); // 'too_many_invites'
 // sign-up-gate.test.ts:
 test('an invited new email gets a code; after the invite is cancelled it gets nothing', …);
 ```
@@ -794,10 +769,11 @@ test('a regular bill is paid after any payment', …);
 test('a credit card with a minimum is paid only once payments reach it', …); // min 5000: pay 3000 → upcoming/overdue; pay 2000 more → paid
 test('a credit card with no minimum is paid after any payment', …);
 test('overdue starts the day after the due date in the household time zone', async () => {
-  // household tz 'America/Los_Angeles', entry due 2027-03-10.
-  // statusAt = sql`select public.entry_status_at(${entry}, ${now})` (as postgres)
-  expect(await statusAt(entry, '2027-03-11T06:30:00Z')).toBe('upcoming'); // 23:30 PDT on Mar 10
-  expect(await statusAt(entry, '2027-03-11T07:30:00Z')).toBe('overdue');  // 00:30 PDT on Mar 11
+  // localDate(ts, tz) = sql`select (${ts}::timestamptz at time zone ${tz})::date`, the same expression scope_today uses
+  const rule = (today: string) => sql`select public.status_rule(false, null, 0, '2027-03-10', ${today}) s`;
+  const la = 'America/Los_Angeles';
+  expect(await rule(await localDate('2027-03-11T06:30:00Z', la))).toEqual([{ s: 'upcoming' }]); // 23:30 PDT Mar 10
+  expect(await rule(await localDate('2027-03-11T07:30:00Z', la))).toEqual([{ s: 'overdue' }]);  // 00:30 PDT Mar 11
 });
 test('target_cents is the minimum for cards that have one, else expected', …);
 // payments.test.ts
@@ -809,8 +785,8 @@ test('entry_view hides personal entries from other members', …);  // proves se
 
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement.** The status rule exists once, in
-  `status_rule`. `entry_view` calls it with `scope_today(...)`, and
-  `entry_status_at` calls it with the local date of `p_now`.
+  `status_rule`, and `entry_view` calls it with `scope_today(...)`.
+  `scope_today` computes `(now() at time zone tz)::date`.
 - [ ] **Step 4: Run.** Expected: PASS.
 - [ ] **Step 5: Commit.** `git add -A && git commit -m "Add payments and entry status"`
 
@@ -874,8 +850,9 @@ test('a deleted account’s email disappears from invites and history', …);
 
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement the migration and the function.**
-  - The function calls `account_deletion_blocker` with a client built from
-    the request's `Authorization` header, and uses the service-role client
+  - The function gets the caller's ID from `auth.getUser(token)`, using the
+    request's own access token (D30). It calls `account_deletion_blocker`
+    with a client built from that token, and uses the secret-key client
     only for `deleteUser`.
   - Deleting a household writes no history event: all its history is
     deleted with it (§5). *(Claude's call, listed in the snapshot.)*
@@ -1185,7 +1162,8 @@ test('csv neutralizes formulas and quotes commas, quotes and newlines', () => {
 
 **Interfaces:**
 - Produces: Edge Function `POST /functions/v1/invite` with body
-  `{ "email": string }` and the user's JWT. It:
+  `{ "email": string }` and the user's JWT. It identifies the caller with
+  `auth.getUser(token)` (D30), then:
   1. normalizes the email,
   2. inserts into `invites` **with the caller's client**, so RLS decides,
   3. on success, `sendEmail` to the invitee: subject "You're invited to a
@@ -1237,24 +1215,35 @@ test('csv neutralizes formulas and quotes commas, quotes and newlines', () => {
 - [ ] **Step 4: Run.** Expected: PASS.
 - [ ] **Step 5: Commit.** `git add -A && git commit -m "Add the delete account flow"`
 
-### Task 20: Deploy the app to production and smoke-test it
+### Task 20: Deploy the app to production with security headers, and smoke-test it
 
 - [ ] **Step 1:** Run `npx supabase db push` and
   `npx supabase functions deploy invite delete-account`. Set secrets
   (`APP_URL`, SMTP vars, `MAIL_FROM_NAME`) with `npx supabase secrets set`.
   Record each name (not its value) in `docs/operations.md`.
-- [ ] **Step 2:** Run `npm run deploy`.
-- [ ] **Step 3 (Aamir, on iPhone):** Create the household, invite a second
+- [ ] **Step 2: Security headers.** Add a static `public/_headers` for `/*`:
+  - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://<project-ref>.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
+  - `Strict-Transport-Security: max-age=31536000`
+  - `X-Content-Type-Options: nosniff`
+  - `Referrer-Policy: no-referrer`
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+  The project URL isn't secret. Another copy of the app edits this one
+  line.
+- [ ] **Step 3:** Run `npm run deploy`, then `curl -sI <pages url>`.
+  Expected: all the headers. Open the app on iPhone and Mac Safari.
+  Expected: no CSP errors in the console (Mac Web Inspector).
+- [ ] **Step 4 (Aamir, on iPhone):** Create the household, invite a second
   address he owns, accept it there, add a household bill and a personal
   bill, and mark one paid. Confirm the second account can't see the
   personal bill.
-- [ ] **Step 4: Commit** the operations doc. `git commit -am "Document production deploy steps"`
+- [ ] **Step 5: Commit.** `git add -A && git commit -m "Deploy to production with security headers"`
 
 ---
 
 ## Phase 4: Jobs and operations
 
-### Task 21: Hourly reminders (idempotent)
+### Task 21: Daily reminders (idempotent, D29)
 
 **Files:**
 - Create: migration `reminders`, `supabase/functions/_shared/reminder-email.ts`, `supabase/functions/daily/index.ts`, `supabase/seed.sql`, `src/lib/reminder-email.test.ts` (imports the shared file by relative path), `tests/db/reminders.test.ts`
@@ -1262,14 +1251,11 @@ test('csv neutralizes formulas and quotes commas, quotes and newlines', () => {
 
 **Interfaces:**
 - Produces:
-  - Tables: `job_runs`, `digest_sends`, `reminder_sends`.
+  - Tables: `job_runs`, `reminder_sends`.
   - `claim_reminders(p_now timestamptz) → table(profile_id uuid, email text, local_date date, entry_id uuid, kind text, bill_name text, due_date date, amount_cents bigint)`.
-    It inserts digest and reminder claims and returns only rows it
-    claimed. Rules:
-    - Effective time zone = the household's if the person is a member,
-      else the profile's.
-    - The person's local hour must be ≥ 8, and they must have no
-      `digest_sends` row for their local date.
+    It inserts reminder claims and returns only rows it claimed. Rules:
+    - `local_date` = `p_now` in the person's effective time zone (the
+      household's if they're a member, else their profile's).
     - Entries: not paid, bill not archived. Household bills need the
       person to be a member with `remind_household`; personal bills need
       the owner with `remind_personal`.
@@ -1287,10 +1273,16 @@ test('csv neutralizes formulas and quotes commas, quotes and newlines', () => {
     `release_reminders` and marks the run failed. It then handles
     heads-ups (Task 22) and calls `record_job_run('reminders', ok, summary)`.
     The summary holds counts only, never names or emails.
-  - A pg_cron job `reminders-hourly` at `'5 * * * *'`. It uses `net.http_post`
-    to `<vault functions_url>/daily` with the `x-cron-secret` header from
-    the Vault secret `cron_secret`. `seed.sql` creates the local Vault
-    values; production values are set by hand (operations doc).
+  - A pg_cron job `reminders-daily` at `'0 <H> * * *'`, where H is the UTC
+    hour of 8 a.m. in the household's standard time (D29).
+    - It uses `net.http_post` to `<vault functions_url>/daily`, with the
+      `x-cron-secret` header from the Vault secret `cron_secret`.
+    - It passes **`timeout_milliseconds := 60000`**, because pg_net's
+      default of 2 s would cut off sending.
+    - The job depends on where the household is, so it's created by SQL in
+      `seed.sql` (local) and by hand from `docs/operations.md`
+      (production), not in a migration. The Vault values are created the
+      same way.
 
 - [ ] **Step 1: Write the failing tests:**
 
@@ -1304,7 +1296,7 @@ test('bill names go through as plain text, unchanged', () => {
 // reminders.test.ts: last-4 can't leak because it never reaches the sender
 test('claim_reminders returns no last4, nickname, or pay_url column', …); // Object.keys(row) equals the Interfaces list
 // reminders.test.ts (db): calls sql`select * from public.claim_reminders(${now})`
-test('a household bill reminds members with household reminders on, at 8 a.m. their time, not before', …);
+test('a household bill reminds members with household reminders on, using their local date', …); // p_now 07:30Z = previous day in LA
 test('lead reminder N days before uses the person’s lead_days', …);
 test('due-day and one overdue reminder; none on day 2+ for overdue beyond 7 days', …);
 test('paid entries and archived bills get nothing', …);
@@ -1315,7 +1307,7 @@ test('two concurrent claims never return the same row', async () => {
   const [a, b] = await Promise.all([claim(now), claim(now)]);
   expect(intersect(ids(a), ids(b))).toEqual([]);
 });
-test('a released claim is claimed again on the next run', …);
+test('a released claim is claimed again on the next day’s run', …);
 test('the daily function rejects a missing or wrong cron secret', …);   // fetch → 401
 test('the daily function sends one Mailpit email per person and logs a job run', …);
 ```
@@ -1329,7 +1321,7 @@ test('the daily function sends one Mailpit email per person and logs a job run',
     "Overdue since Oct 24: Visa, $35". Then the app link and "Turn
     reminders off in Settings."
 - [ ] **Step 4: Run.** Expected: PASS.
-- [ ] **Step 5: Commit.** `git add -A && git commit -m "Add hourly email reminders"`
+- [ ] **Step 5: Commit.** `git add -A && git commit -m "Add daily email reminders"`
 
 ### Task 22: Retention, heads-up emails, session cap, and nightly upkeep
 
@@ -1339,13 +1331,13 @@ test('the daily function sends one Mailpit email per person and logs a job run',
 
 **Interfaces:**
 - Produces:
-  - The `heads_up_sends` table.
   - `claim_heads_ups(p_now) → table(profile_id uuid, email text, scope text, household_name text, removal_month date)`.
-    It covers scopes whose window isn't null and that have entries with
-    `due_date < scope_today − window + 1 month`, with no `heads_up_sends`
-    row. Recipients: the owners (household) or the person (personal).
-  - A trigger clearing `heads_up_sends` for a scope when its
-    `retention_months` changes.
+    It covers scopes whose window isn't null, whose `heads_up_sent_at` is
+    null, and that have entries with `due_date < scope_today − window + 1
+    month`. It sets `heads_up_sent_at` as its claim. Recipients: the owners
+    (household) or the person (personal).
+  - A trigger clearing `heads_up_sent_at` on `households` / `profiles`
+    when that row's `retention_months` changes.
   - `run_maintenance()`, which runs these in order:
     1. `extend_entries()`
     2. deletes entries (and their payments) with `due_date < scope_today −
@@ -1354,8 +1346,8 @@ test('the daily function sends one Mailpit email per person and logs a job run',
     4. deletes archived bills archived before the window that have no
        entries left
     5. deletes `auth.sessions` with `created_at < now() − 30 days`
-    6. prunes `digest_sends` older than 60 days, invites ended over 30
-       days ago, and `job_runs` older than 90 days
+    6. prunes invites ended over 30 days ago and `job_runs` older than 90
+       days
     7. `record_job_run('maintenance', …)`
 
     Each step's exception is caught and recorded as `ok = false`.
@@ -1381,44 +1373,58 @@ test('the daily function sends one Mailpit email per person and logs a job run',
     path ("Settings → Export").
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement.** The daily function sends heads-ups after the
-  reminders, using claim → send → (on failure) delete the claim.
+  reminders, using claim → send → (on failure) clear `heads_up_sent_at`.
 - [ ] **Step 4: Run.** Expected: PASS.
 - [ ] **Step 5: Commit.** `git add -A && git commit -m "Add retention, heads-up emails, session cap, and nightly upkeep"`
 
 ### Task 23: Health check and watchdog (D27)
 
 **Files:**
-- Create: migration `health`, `tests/db/health.test.ts`
-- Modify: `.github/workflows/daily-health.yml`, `docs/operations.md`
+- Create: migration `health`, `tests/db/health.test.ts`, `.github/workflows/daily-health.yml`
+- Modify: `docs/operations.md`
 
 **Interfaces:**
 - Produces: `health_check(p_token text) → jsonb` returning
   `{ ok, last_reminders_ok_at, last_maintenance_ok_at, failures_24h }`. It
   raises `forbidden` unless `p_token` equals the Vault secret
   `health_token`. `ok` requires all three:
-  - a reminders success within 3 hours,
+  - a reminders success within 26 hours,
   - a maintenance success within 26 hours,
   - `failures_24h = 0`.
 
 - [ ] **Step 1: Write the failing tests:**
   - A wrong token gives `forbidden`.
   - With fresh successful runs, `ok` is true.
-  - A reminders run 4 hours old makes `ok` false.
+  - A reminders run 27 hours old makes `ok` false.
   - A failed run in the last day makes `ok` false.
   - The response contains no emails or names.
 - [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement the function.** Harden the workflow:
+- [ ] **Step 3: Implement the function and the workflow.**
+  - Triggers: `schedule` about an hour after the reminder run, and
+    `workflow_dispatch`.
   - `permissions: { actions: write, contents: read }`.
+  - The health step uses `curl --fail-with-body -sS` to POST
+    `/rest/v1/rpc/health_check` with `{"p_token": …}`, using repo secrets
+    `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `HEALTH_TOKEN`. Mask the
+    response (`::add-mask::`) before any output, and never `echo` secrets.
   - The health step fails the job when `ok` is false and prints only the
     field names and timestamps.
   - A final step, `if: always()`, runs `gh workflow enable daily-health.yml`
     and `gh workflow enable backup.yml`, with `GH_TOKEN: ${{ github.token }}`.
   - Confirm in GitHub settings that failed-workflow emails reach Aamir.
+  - Add two warnings to `operations.md`:
+    - "If GitHub emails that a workflow will be disabled, re-enable it by
+      hand." A workflow re-enabled by the bot may send its failure emails
+      to the bot instead of Aamir.
+    - "Changing the Gmail password cancels its app passwords. Create a new
+      one and update Supabase's SMTP setting and the function secrets right
+      away, or sign-in codes, invites, and reminders stop."
 - [ ] **Step 4: Run.** Expected: PASS.
 - [ ] **Step 5: Switch to production.**
-  - Ask Aamir to update the repo secrets to project A, and to set Vault
-    secrets `health_token`, `cron_secret`, and `functions_url` in project
-    A's SQL editor.
+  - Ask Aamir to add the repo secrets for project A, to set Vault secrets
+    `health_token`, `cron_secret`, and `functions_url`, and to create the
+    `reminders-daily` cron job in project A's SQL editor
+    (`operations.md`).
   - Set the function secret `CRON_SECRET`, then deploy `daily`.
   - Run the workflow manually. Expected: green.
   - Then break it on purpose (temporarily set a wrong `HEALTH_TOKEN`).
@@ -1440,10 +1446,12 @@ test('the daily function sends one Mailpit email per person and logs a job run',
   - Run `age-keygen` locally. Save the **private** key in Apple
     Passwords plus a printed copy, and never anywhere else.
 - [ ] **Step 2: Write the migration `backup_role`.** It creates a login
-  role `backup_reader`, granted `pg_read_all_data`, with no other rights.
-  Aamir sets its password in the SQL editor; the password is never in the
-  migration. **If `pg_read_all_data` can't be granted on Supabase,** stop
-  and ask Aamir before using the `postgres` connection string instead.
+  role `backup_reader` with `BYPASSRLS`, granted `pg_read_all_data`, and
+  no other rights. Without `BYPASSRLS`, the row-level security rules would
+  hide every `public` row and the backup would come out empty. Aamir sets
+  its password in the SQL editor; the password is never in the migration.
+  **If either grant is refused on Supabase,** stop and ask Aamir before
+  using the `postgres` connection string instead.
 - [ ] **Step 3: Write the workflow.**
   - Triggers: `schedule: '0 10 * * 0'` and `workflow_dispatch`, with
     `permissions: contents: read`.
@@ -1451,14 +1459,19 @@ test('the daily function sends one Mailpit email per person and logs a job run',
   - Run, with `set -euo pipefail`:
 
     ```bash
-    pg_dump "$BACKUP_DB_URL" --data-only --schema=public --schema=auth --disable-triggers \
-      --exclude-table=auth.schema_migrations | gzip | age -r "$AGE_RECIPIENT" > "$RUNNER_TEMP/b.age"
+    pg_dump "$BACKUP_DB_URL" --data-only --schema=public --schema=auth \
+      --exclude-table=auth.schema_migrations \
+      --exclude-table-data='auth.sessions' --exclude-table-data='auth.refresh_tokens' \
+      --exclude-table-data='auth.one_time_tokens' --exclude-table-data='auth.flow_state' \
+      --exclude-table-data='auth.audit_log_entries' \
+      | gzip | age -r "$AGE_RECIPIENT" > "$RUNNER_TEMP/b.age"
     ```
 
   - Upload with `aws s3 cp` to
     `s3://$B2_BUCKET/bills-$(date -u +%F).sql.gz.age`, with
     `--endpoint-url $B2_ENDPOINT`.
-  - Verify the upload is over 1 KB with `aws s3 ls`.
+  - Verify the upload is over 1 KB with `aws s3 ls`. Size alone doesn't
+    prove the household data is in it; Step 5 does.
   - Nothing is echoed, and there's no `upload-artifact`.
   - Secrets: `BACKUP_DB_URL` (session pooler, `backup_reader`),
     `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, `B2_ENDPOINT`. `AGE_RECIPIENT`
@@ -1467,11 +1480,13 @@ test('the daily function sends one Mailpit email per person and logs a job run',
   bucket.
 - [ ] **Step 5: Restore test.** Download the file, then run
   `age -d -i <key> | gunzip > restore.sql` in the scratch folder. Load it
-  into a fresh local stack: `npx supabase db reset`, then
-  `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f restore.sql`.
-  **If `--disable-triggers` is refused,** connect as `supabase_admin`
-  instead (the local superuser). Sign in locally as a restored user.
-  Expected: their bills are there. Delete the plaintext file afterward.
+  into a fresh local stack: `npx supabase db reset`, then Supabase's
+  documented method,
+  `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c "set session_replication_role = replica" -f restore.sql`
+  (in one session). Confirm `public.bills` has rows. Sign in locally as a
+  restored user (everyone signs in again, since sessions aren't backed
+  up). Expected: their bills are there. Delete the plaintext file
+  afterward.
 - [ ] **Step 6: Document the restore** in `operations.md` (exact commands,
   and where the key is). Record the restore date in `verify-early.md`.
 - [ ] **Step 7: Commit.** `git add -A && git commit -m "Add weekly encrypted backups and document a tested restore"`
@@ -1480,35 +1495,7 @@ test('the daily function sends one Mailpit email per person and logs a job run',
 
 ## Phase 5: Release
 
-### Task 25: Security headers and a shipped-bundle check
-
-**Files:**
-- Create: `scripts/write-headers.mjs`, `scripts/check-bundle.mjs`
-- Modify: `package.json` (`deploy` runs both after build), `.github/workflows/ci.yml` (runs `check-bundle` after build)
-
-- [ ] **Step 1: Write the bundle check** `check-bundle.mjs`. It fails if
-  `dist/` contains:
-  - the string `service_role`,
-  - any JWT whose payload has `"role":"service_role"`,
-  - `sb_secret_`,
-  - or any `SMTP_`/`GMAIL` text.
-
-  Run it on the current build. Expected: PASS. Plant a fake service-role
-  JWT in a temp copy of `dist/`. Expected: FAIL.
-- [ ] **Step 2: Write `write-headers.mjs`.** It writes `dist/_headers` for
-  `/*`:
-  - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' <VITE_SUPABASE_URL>; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
-  - `Strict-Transport-Security: max-age=31536000`
-  - `X-Content-Type-Options: nosniff`
-  - `Referrer-Policy: no-referrer`
-  - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-- [ ] **Step 3: Deploy and check.** Run `npm run deploy`, then
-  `curl -sI <pages url>`. Expected: all the headers. Open the app on
-  iPhone and Mac Safari. Expected: no CSP errors in the console (Mac Web
-  Inspector), and sign-in, the calendar, and the pay sheet all work.
-- [ ] **Step 4: Commit.** `git add -A && git commit -m "Add security headers and a shipped-bundle secret check"`
-
-### Task 26: Production checklist and household acceptance
+### Task 25: Production checklist, household acceptance, and the pause watch
 
 **Files:**
 - Modify: `docs/operations.md`, `docs/SNAPSHOT.md`
@@ -1532,7 +1519,11 @@ test('the daily function sends one Mailpit email per person and logs a job run',
   3. The parents turn on household reminders.
   4. Enter the real bills.
   5. Over the next week, confirm reminder emails arrive at about 8 a.m.
-     and stop once a bill is marked paid.
+     (9 a.m. during daylight saving) and stop once a bill is marked paid.
+- [ ] **Step 3b: Pause watch (D31).** For the first 3 weeks live, confirm
+  no Supabase pause-warning email arrives and daily-health stays green.
+  Record the result in `verify-early.md` (design §11.2). If a warning
+  arrives, revisit D27 with Aamir.
 - [ ] **Step 4: Update the snapshot** (stage: v1 live) and commit:
   `git commit -am "Mark v1 live"`. Ask Aamir before pushing.
 
@@ -1549,6 +1540,6 @@ test('the daily function sends one Mailpit email per person and logs a job run',
 | §8 reminders, email format, idempotency | 21 |
 | §8 retention, heads-up, export | 10, 17, 22 |
 | §9 RLS and security tests | 2–9, V5 |
-| §9 secrets, admin account, input validation, https links | 1, 4, 25, 26 |
-| §9 keep-alive, backups, email sender, health | V1, V2, 23, 24 |
-| §11 verify early | V1–V4 (+ V5) |
+| §9 secrets, admin account, input validation, https links | 1, 4, 20, 25 |
+| §9 keep-alive, backups, email sender, health | V1, 23, 24, 25 |
+| §11 verify early | V1, V3, V4 (+ V5); item 2 in Task 25 (D31) |
