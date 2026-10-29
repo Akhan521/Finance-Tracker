@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-10-26 (end of session 5: implementation plan written)
+**Last updated:** 2026-10-28 (session 5, continued: plan revised after an adversarial review)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -47,7 +47,7 @@ not money. Core needs:
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
   plan), `docs/requirements.md`, and `docs/decisions/` (one file per
-  decision, D1–D28).
+  decision, D1–D31).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -75,6 +75,31 @@ not money. Core needs:
     - Backblaze B2 has 10 GB free with no card.
   - Builder decisions recorded as D23–D28 (Claude's calls, listed below for
     review).
+- **Session 5, continued (2026-10-28):**
+  - A subagent reviewed the plan and D23–D28 adversarially, checking every
+    free-tier claim against current official pages. Everything stays $0
+    with no card.
+  - It found four problems, now fixed in the plan:
+    - **Backups would have been empty:** the backup role needs `BYPASSRLS`.
+    - **The scheduled call to the reminder function would have timed out**
+      after pg_net's 2-second default.
+    - **The plan used Supabase's retiring anon and service_role keys**
+      (D30).
+    - **A missing test:** an attacker could set a password on an invited
+      email before the real person signs in.
+  - Aamir chose:
+    - **reminders once a day** (D29),
+    - **keep the 30-day sign-out,**
+    - **keep the GitHub Action as the watchdog,**
+    - **drop the early pause test V2** (D31).
+  - Also cut:
+    - gitleaks (GitHub push protection replaces it),
+    - the header-generating and bundle-scanning scripts (a static file and
+      a one-line check replace them),
+    - a test-only SQL function,
+    - two single-use tables.
+  - The invite limit now counts invites sent per day.
+  - The plan is now 29 tasks.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -165,8 +190,9 @@ and the invite details.
   monthly email after year 3 would break "quiet."
 - **Overdue reminders are skipped for bills more than 7 days late.** Turning
   reminders back on after months then doesn't send a flood.
-- **At most 10 pending invites per household,** to protect the Gmail
-  sender.
+- **At most 20 invites created per household per day,** to protect the
+  Gmail sender. (Revised after the review: it used to cap pending invites,
+  which cancel-and-reinvite could get around.)
 - **Deleting a household leaves no history event,** because all its history
   is deleted with it.
 - **The working name is "Bills"** (one constant; rename anytime).
@@ -208,15 +234,14 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Aamir reviews `docs/plan.md`**, the new calls above, and D23–D28, and
-   picks an execution approach (subagent-driven or native; see the end of
-   this session's summary).
-2. **Then build from Task 1**, then the verify-early checks V1–V5. V2 needs
-   at least 8 days of watching, so start it early and carry on with Phase 2
-   while it runs.
+1. **Aamir reviews the revised `docs/plan.md`**, the new calls above, and
+   D23–D31, and picks an execution approach: subagent-driven
+   (recommended) or native.
+2. **Then build from Task 1**, then the verify-early checks V1, V3, V4,
+   and V5.
 3. **Aamir does the account steps** marked "(Aamir)": Gmail, Supabase,
    Cloudflare, Backblaze, the `age` key, and the iPhone checks.
-4. **Ask before every push.** The first push happens in V2.
+4. **Ask before every push.**
 
 ## Working conventions
 
