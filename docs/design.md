@@ -373,6 +373,10 @@ removal goes in the history. (Claude's call; mis-taps will happen.)
 household's time zone; personal-only users use their own time zone, set from
 their device at sign-up.
 
+> **Update (2026-10-28, D29):** one daily run at a fixed time, 8 a.m. in the
+> household's standard time (9 a.m. during daylight saving). Everyone on
+> this copy gets reminders at that time.
+
 - For each unpaid entry, it sends at most:
   1. **N days before** (N = the person's lead time, default 7),
   2. **on the due date**,

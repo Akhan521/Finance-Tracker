@@ -34,3 +34,9 @@ fails loudly. Hourly runs make a missed run cost an hour, not a day.
 - **Trusting pg_cron alone:** a broken run would go unnoticed.
 - **Bot commits to keep the repo "active":** they clutter history, and the
   re-enable API call is cleaner.
+
+**Update (2026-10-28, D29).** Reminders now run **once a day**, not hourly.
+The watchdog's thresholds become 26 hours for both jobs. The plan review
+also found that a workflow re-enabled by the bot may send its failure
+emails to the bot instead of Aamir. So if GitHub ever warns that a workflow
+will be disabled, Aamir re-enables it by hand.

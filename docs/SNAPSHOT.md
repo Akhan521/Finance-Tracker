@@ -120,6 +120,7 @@ discussed).
 | [D26](decisions/026-backups.md) | **Backups:** a weekly dump encrypted with `age` (the Action holds only the public key) to a private **Backblaze B2** bucket (free, no card), auto-deleted after 56 days. Never in Action logs or artifacts. (Claude's call.) | Decided |
 | [D27](decisions/027-job-health-and-keep-alive.md) | **Reminder job runs hourly**, sending after 8 a.m. local, and logs each run. A **daily GitHub Action is the keep-alive and the watchdog**: it fails (emailing Aamir) if reminders stopped, and re-enables workflows against GitHub's 60-day rule. (Claude's call.) | Decided |
 | [D28](decisions/028-app-tooling.md) | **App tooling:** Vite, React Router, TanStack Query, vite-plugin-pwa, plain CSS tokens, money in whole cents, generated DB types, a service worker that never caches bill data, and Cloudflare Pages with strict security headers. (Claude's call.) | Decided |
+| [D29](decisions/029-one-daily-reminder-run.md) | **Reminders run once a day** at a fixed time: 8 a.m. household standard time (9 a.m. in daylight saving). A failed send retries the next day. Replaces D27's hourly runs; everyone on this copy shares one time zone. (Aamir's choice after the plan review.) | Decided |
 
 ## Facts about the household (from Aamir)
 
