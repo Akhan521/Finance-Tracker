@@ -148,6 +148,7 @@ discussed).
 | [D29](decisions/029-one-daily-reminder-run.md) | **Reminders run once a day** at a fixed time: 8 a.m. household standard time (9 a.m. in daylight saving). A failed send retries the next day. Replaces D27's hourly runs; everyone on this copy shares one time zone. (Aamir's choice after the plan review.) | Decided |
 | [D30](decisions/030-new-supabase-api-keys.md) | **Use Supabase's new API keys:** the publishable key in the app, secret keys only in Edge Functions. Functions identify the caller from their token. The old anon and service_role keys are deprecated at the end of 2026. (Claude's call.) | Decided |
 | [D31](decisions/031-pause-check-on-live-project.md) | **Drop the early pause test (V2).** Supabase documents that API calls prevent pausing. Instead, watch the live project for a pause-warning email for its first 3 weeks. (Aamir's choice after the plan review.) | Decided |
+| [D32](decisions/032-public-repo-exposure.md) | **The public repo never identifies the live app:** no project URL or ref, Pages address, sender Gmail, bucket name, or family emails. The deploy script fills them in from git-ignored files. **Supabase Auth sends at most 10 emails an hour**, so code-request spam to a known email can't use up Gmail's daily limit. Turnstile CAPTCHA only if abuse appears. (Aamir, after a pre-push check.) | Decided |
 
 ## Facts about the household (from Aamir)
 
