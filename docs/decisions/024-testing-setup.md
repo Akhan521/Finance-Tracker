@@ -32,3 +32,11 @@ a mock.
   needs real secrets in CI.
 - **Docker Desktop alternatives** (Colima, OrbStack) are fine too; any free
   Docker runtime works.
+
+**Update (2026-10-28, plan review).** gitleaks is dropped from CI. CI runs
+after a push, so anything it finds is already public. Instead, **GitHub push
+protection** (free, on by default for public repos) blocks known secret
+formats before they arrive. A one-line check of the built app catches
+secret keys in the bundle. "A red build blocks merging" applies only if
+branch protection is turned on. For a solo repo pushing to `main`, a red
+build means stop and fix before deploying.
