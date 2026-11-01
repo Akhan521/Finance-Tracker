@@ -1,1 +1,34 @@
 .superpowers/
+
+# Vite template
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+node_modules
+dist
+dist-ssr
+*.local
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Secrets and build output
+.env
+.env.*
+!.env.example
+supabase/functions/.env
+supabase/.temp/
+dist/
+*.age
+*.sql.gz
+backup*
