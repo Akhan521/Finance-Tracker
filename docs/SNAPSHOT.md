@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-10-28 (end of session 5: plan revised after review, security-checked, and pushed)
+**Last updated:** 2026-11-01 (end of session 6: building started; Task 1 part A done)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). No code has been written yet. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1 part A is done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -40,14 +40,15 @@ not money. Core needs:
 
 ## Where we are
 
-- **Stage:** **Implementation plan written (2026-10-26), awaiting Aamir's
-  review.** The next stage is building, starting with the verify-early
-  checks. Brainstorming followed the superpowers process: questions →
+- **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
+  session 5 calls were approved by Aamir. Task 1 part A is done; part B is
+  next. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
-  plan), `docs/requirements.md`, and `docs/decisions/` (one file per
-  decision, D1–D32).
+  plan), `docs/requirements.md`, `docs/decisions/` (one file per
+  decision, D1–D32), and the app scaffold (Vite + React + TypeScript,
+  `src/lib/config.ts`, `vitest.config.ts`).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -110,6 +111,19 @@ not money. Core needs:
     - Supabase Auth sends at most 10 emails an hour, so code-request spam
       to Aamir's public email can't use up Gmail's daily limit.
   - Everything is pushed to `origin/main`.
+- **Session 6 (2026-11-01):**
+  - Aamir approved the plan and the session 5 calls, and chose
+    subagent-driven execution on `main`, with a small first step.
+  - **Task 1 part A done** (Steps 1–6 plus Step 9's `.gitignore` lines):
+    - Vite 8, React 19, and TypeScript 7 scaffold, with all the plan's
+      dependencies (Vitest 5, Supabase JS and CLI, TanStack Query, React
+      Router, vite-plugin-pwa, wrangler, postgres).
+    - `src/lib/config.ts` (test-first): `APP_NAME = 'Bills'`, and a clear
+      error naming the missing Supabase URL or publishable key. 3 tests
+      pass.
+    - `vitest.config.ts` with the `unit` and `db` projects.
+    - Two commits, reviewed by a subagent. Not pushed yet.
+  - Aamir approves every commit before it's made (implementers only stage).
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -186,7 +200,7 @@ per-person reminder settings, a single overdue reminder, the deletion heads-up
 and adjustable window, owners managing owners, sign-in code/session details,
 and the invite details.
 
-**New calls from session 5 (not yet reviewed by Aamir):**
+**Calls from session 5 (confirmed by Aamir on 2026-11-01):**
 - D23–D28 as a whole: how the server enforces invite-only and 30-day
   sessions, the testing setup, stored entries, backups, the job watchdog,
   and the app tooling.
@@ -210,6 +224,17 @@ and the invite details.
 - **A sole member must delete the household before deleting their
   account.** The database blocks it otherwise, the same way it blocks a
   last owner.
+
+**New calls from session 6 (build details, not yet reviewed by Aamir):**
+- **The Vite scaffold is made in a scratch folder and copied in,** because
+  `npm create vite` in the repo can offer to delete existing files.
+- **The config test uses `vi.resetModules()` instead of
+  `import('./config?missing')`,** which `tsc` can't type-check. Same checks,
+  plus one for a missing publishable key.
+- **`passWithNoTests` lives in the `test:db` script,** because Vitest 5
+  allows it only at the root, not per project.
+- **Step 9's `.gitignore` lines came in with the scaffold,** so secrets are
+  ignored before any env var exists.
 
 Any new calls go in a fresh list here.
 
@@ -245,11 +270,17 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Aamir reviews the revised `docs/plan.md`**, the new calls above, and
-   D23–D32, and picks an execution approach: subagent-driven
-   (recommended) or native.
-2. **Then build from Task 1**, then the verify-early checks V1, V3, V4,
-   and V5.
+1. **Finish Task 1, part B** (Steps 7–12): `npx supabase init` and
+   `config.toml` locked to the production Auth settings, the `code.html`
+   template, `.env.example`, CI, `operations.md`, and the README paragraph.
+   Before that:
+   - **Approve the skipped install scripts.** npm 11 skipped them
+     (esbuild, workerd, fsevents, the Supabase CLI), so run
+     `npm approve-scripts` before `npx supabase`.
+   - **Decide how CI's `test:db` passes before V5 creates
+     `tests/helpers/env.ts`.**
+   - **Step 10b (Aamir):** confirm GitHub push protection is on.
+2. **Then the verify-early checks** V1, V3, V4, and V5.
 3. **Aamir does the account steps** marked "(Aamir)": Gmail, Supabase,
    Cloudflare, Backblaze, the `age` key, and the iPhone checks.
 4. **Ask before every push.**
