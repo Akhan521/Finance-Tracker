@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Check the bundle for secrets
+        run: "! grep -rE 'sb_secret_|service_role|SMTP_|GMAIL' dist"
+      - run: npx supabase start -x studio,imgproxy,vector,logflare
+      - run: cp supabase/functions/.env.example supabase/functions/.env
+      - run: npx supabase db reset
+      - run: npm run test:db
