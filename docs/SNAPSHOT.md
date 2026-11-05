@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-01 (end of session 6: building started; Task 1 part A done)
+**Last updated:** 2026-11-04 (end of session 7: Task 1 done, CI green)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1 part A is done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1 is done and CI is green. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -41,14 +41,16 @@ not money. Core needs:
 ## Where we are
 
 - **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
-  session 5 calls were approved by Aamir. Task 1 part A is done; part B is
-  next. Brainstorming followed the superpowers process: questions →
+  session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI) is
+  done; V1 is next and starts with Aamir's account steps. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
   plan), `docs/requirements.md`, `docs/decisions/` (one file per
-  decision, D1–D32), and the app scaffold (Vite + React + TypeScript,
-  `src/lib/config.ts`, `vitest.config.ts`).
+  decision, D1–D32), the app scaffold (Vite + React + TypeScript,
+  `src/lib/config.ts`, `vitest.config.ts`), local Supabase config
+  (`supabase/`), `.env.example`, CI (`.github/workflows/ci.yml`), and
+  `docs/operations.md` (empty sections).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -122,8 +124,24 @@ not money. Core needs:
       error naming the missing Supabase URL or publishable key. 3 tests
       pass.
     - `vitest.config.ts` with the `unit` and `db` projects.
-    - Two commits, reviewed by a subagent. Not pushed yet.
+    - Two commits, reviewed by a subagent, and pushed.
   - Aamir approves every commit before it's made (implementers only stage).
+- **Session 7 (2026-11-04):**
+  - **Task 1 part B done**, in four commits, reviewed by a subagent and
+    pushed:
+    - `supabase/config.toml` locked to the production Auth settings
+      (6-digit codes, 600 s expiry, 60 s between requests, 10 emails an
+      hour, confirmations on, anonymous/SMS/Apple off), and
+      `supabase/templates/code.html` (code only, no link). A local test
+      email showed a 6-digit code, the 10-minute line, and no link.
+    - `.env.example` and `supabase/functions/.env.example` (names only).
+    - CI: typecheck, unit tests, build, the bundle secret check, then a
+      local Supabase, `db reset`, and the db tests. Read-only token, no
+      secrets. **The first run on GitHub passed.**
+    - `docs/operations.md` (four empty sections) and a README paragraph.
+  - GitHub push protection and secret scanning are confirmed on (read
+    through `gh api`), which covers Step 10b.
+  - Aamir's pace: about 7 commits per session at most, each approved first.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -236,6 +254,19 @@ and the invite details.
 - **Step 9's `.gitignore` lines came in with the scaffold,** so secrets are
   ignored before any env var exists.
 
+**New calls from session 7 (build details, not yet reviewed by Aamir):**
+- **esbuild and workerd install scripts stay unapproved** until something
+  needs them (least privilege). Build, tests, and the Supabase CLI work
+  without them. Wrangler may need workerd in V4.
+- **CI uses Node 26** (the local version), `actions/checkout@v7` and
+  `actions/setup-node@v7`, and a read-only token.
+- **No `deploy` script yet;** V4 adds it with `scripts/deploy.mjs`.
+- **The Supabase CLI stays on v2.122.0** for now (v3.0.0 is out).
+- **Only the code and confirmation emails are code-only so far.** The
+  password-reset, email-change, invite, and re-authentication templates
+  still have Supabase's default links. They go only to the account's own
+  inbox. Make them code-only in V3.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -270,20 +301,23 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Finish Task 1, part B** (Steps 7–12): `npx supabase init` and
-   `config.toml` locked to the production Auth settings, the `code.html`
-   template, `.env.example`, CI, `operations.md`, and the README paragraph.
-   Before that:
-   - **Approve the skipped install scripts.** npm 11 skipped them
-     (esbuild, workerd, fsevents, the Supabase CLI), so run
-     `npm approve-scripts` before `npx supabase`.
-   - **Decide how CI's `test:db` passes before V5 creates
-     `tests/helpers/env.ts`.**
-   - **Step 10b (Aamir):** confirm GitHub push protection is on.
-2. **Then the verify-early checks** V1, V3, V4, and V5.
-3. **Aamir does the account steps** marked "(Aamir)": Gmail, Supabase,
-   Cloudflare, Backblaze, the `age` key, and the iPhone checks.
-4. **Ask before every push.**
+1. **V1: Gmail SMTP.** It starts with two steps only Aamir can do:
+   - **Create the dedicated Gmail account,** turn on 2-Step Verification,
+     create an app password named "Supabase", and save both in Apple
+     Passwords.
+   - **Create Supabase project A** (production, Free plan, no card) with
+     a strong unique password and 2FA on the Supabase account. Share the
+     project ref in the session only; it never goes in the repo (D32).
+
+   Then Claude connects Gmail as the Auth SMTP sender, tests a sign-in
+   code, tests sending from an Edge Function, and records the results in
+   `docs/verify-early.md`.
+2. **Then V3, V4, and V5.** V3 also makes the remaining Auth email
+   templates code-only.
+3. **Aamir does the other account steps** marked "(Aamir)" as they come
+   up: Cloudflare, Backblaze, the `age` key, and the iPhone checks.
+4. **Ask before every commit and every push.** About 7 commits per
+   session.
 
 ## Working conventions
 
