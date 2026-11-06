@@ -32,6 +32,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
     host,
     port,
     secure,
+    requireTLS: !secure,
     auth: { user, pass },
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
