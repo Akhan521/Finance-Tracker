@@ -245,15 +245,29 @@ otp_expiry = 600
 # sender_name = "Admin"
 
 [auth.email.template.magic_link]
+subject = "Your Bills sign-in code"
 content_path = "./supabase/templates/code.html"
 
 [auth.email.template.confirmation]
+subject = "Your Bills sign-in code"
 content_path = "./supabase/templates/code.html"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# The app doesn't use these flows; code-only so no Auth email carries a link (D18).
+[auth.email.template.invite]
+subject = "Your Bills code"
+content_path = "./supabase/templates/code.html"
+
+[auth.email.template.recovery]
+subject = "Your Bills code"
+content_path = "./supabase/templates/code.html"
+
+[auth.email.template.email_change]
+subject = "Your Bills code"
+content_path = "./supabase/templates/code.html"
+
+[auth.email.template.reauthentication]
+subject = "Your Bills code"
+content_path = "./supabase/templates/code.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
