@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-04 (end of session 7: Task 1 done, CI green)
+**Last updated:** 2026-11-05 (end of session 8: V1 and V3 done; CI blocked by a GitHub billing lock)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1 is done and CI is green. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, and V3 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -41,16 +41,18 @@ not money. Core needs:
 ## Where we are
 
 - **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
-  session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI) is
-  done; V1 is next and starts with Aamir's account steps. Brainstorming followed the superpowers process: questions →
+  session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI),
+  V1 (Gmail SMTP), and V3 (OTP limits) are done; V4 and V5 are next. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
   plan), `docs/requirements.md`, `docs/decisions/` (one file per
   decision, D1–D32), the app scaffold (Vite + React + TypeScript,
   `src/lib/config.ts`, `vitest.config.ts`), local Supabase config
-  (`supabase/`), `.env.example`, CI (`.github/workflows/ci.yml`), and
-  `docs/operations.md` (empty sections).
+  (`supabase/`), `.env.example`, CI (`.github/workflows/ci.yml`),
+  `supabase/functions/_shared/email.ts` (`sendEmail`),
+  `docs/verify-early.md` (V1, V3 results), and `docs/operations.md`
+  (accounts, secret names, the production settings checklist).
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -142,6 +144,31 @@ not money. Core needs:
   - GitHub push protection and secret scanning are confirmed on (read
     through `gh api`), which covers Step 10b.
   - Aamir's pace: about 7 commits per session at most, each approved first.
+- **Session 8 (2026-11-05):**
+  - **Accounts (Aamir):** the dedicated Gmail sender (2-Step Verification,
+    app password "Supabase") and Supabase project A (Free plan, 2FA). The
+    repo is linked; the ref lives only in git-ignored `supabase/.temp/`.
+  - **V1 passed:** Gmail is the Auth SMTP sender (port 465, name "Bills").
+    Sign-in codes and an Edge Function email each reached the inbox in
+    under a minute, with no link. `sendEmail` is committed. The temporary
+    test function and its secret were deleted.
+  - **V3 passed:**
+    - an 11-minute-old code is rejected, and codes are single use,
+    - one code request per 60 s,
+    - about 30 code checks per 5 minutes per IP,
+    - `postgres` can delete from `auth.sessions` and has `BYPASSRLS`.
+  - **The live project doesn't read `config.toml`.** The first live code
+    had 8 digits. Every Auth setting is now set by hand, and listed in the
+    production settings checklist in `docs/operations.md`.
+  - All six Auth email templates are code-only, in the dashboard and in
+    `config.toml`.
+  - A security review flagged that `email.ts` could fall back to plain
+    text on a STARTTLS port. Fixed with `requireTLS`. It wasn't
+    exploitable on port 465.
+  - Five commits, pushed. **CI didn't run on the last push:** GitHub says
+    "the job was not started because your account is locked due to a
+    billing issue." It's not a code failure. The account's paid usage is
+    $0 on the Free plan.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -267,6 +294,22 @@ and the invite details.
   still have Supabase's default links. They go only to the account's own
   inbox. Make them code-only in V3.
 
+**New calls from session 8 (not yet reviewed by Aamir):**
+- **The Gmail app password never passes through Claude.** Aamir typed it
+  into the dashboard and into a file outside the repo, which went straight
+  to `supabase secrets set` and was then deleted.
+- **Edge Functions that import `_shared/email.ts` get their own
+  `deno.json`** (`{"imports":{},"nodeModulesDir":"none"}`). Without it,
+  Deno resolves through the root `package.json` and fails.
+- **Deploy with `--use-api`,** so Supabase bundles on its side and Docker
+  isn't needed.
+- **`sendEmail` sets `requireTLS` on non-465 ports,** so it never sends
+  the password unencrypted.
+- **The four unused Auth templates use the same code-only body,** with
+  the subject "Your Bills code".
+- **Claude wrote the verify-early results and `operations.md` itself,**
+  because they record what was seen and set together in the session.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -301,22 +344,20 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **V1: Gmail SMTP.** It starts with two steps only Aamir can do:
-   - **Create the dedicated Gmail account,** turn on 2-Step Verification,
-     create an app password named "Supabase", and save both in Apple
-     Passwords.
-   - **Create Supabase project A** (production, Free plan, no card) with
-     a strong unique password and 2FA on the Supabase account. Share the
-     project ref in the session only; it never goes in the repo (D32).
-
-   Then Claude connects Gmail as the Auth SMTP sender, tests a sign-in
-   code, tests sending from an Edge Function, and records the results in
-   `docs/verify-early.md`.
-2. **Then V3, V4, and V5.** V3 also makes the remaining Auth email
-   templates code-only.
-3. **Aamir does the other account steps** marked "(Aamir)" as they come
-   up: Cloudflare, Backblaze, the `age` key, and the iPhone checks.
-4. **Ask before every commit and every push.** About 7 commits per
+1. **Aamir: clear the GitHub billing lock.** Go to github.com → Settings →
+   Billing and licensing, look for a locked-account or failed-payment
+   banner, and fix or remove the payment method it names. Then re-run the
+   last CI run (`gh run rerun <id>`) and check it's green.
+2. **V5: the invite-only gate.** This is mostly Claude's work, with no new
+   accounts: the "Before User Created" hook, `tests/helpers/env.ts` and
+   `db.ts`, and `sign-up-gate.test.ts`, then applying the hook to project
+   A and proving an unknown email gets no email and no account.
+3. **V4: the iPhone install check.** Aamir creates a free Cloudflare
+   account. The app is deployed once, added to the iPhone home screen,
+   and a sign-in code is used inside it. Wrangler may need the skipped
+   workerd install script approved first.
+4. **Then Phase 2** (Tasks 2–9: schema, RLS, and the §9 security tests).
+5. **Ask before every commit and every push.** About 7 commits per
    session.
 
 ## Working conventions
