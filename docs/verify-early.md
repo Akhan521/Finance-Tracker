@@ -56,3 +56,46 @@ in for them.
   suffer. Accepted (D17, D20); both test emails reached the inbox.
 - The Invite, Change email, Reset password, and Reauthentication templates
   still have Supabase's default links. V3 makes them code-only.
+
+## V3: OTP expiry, rate limits, and session cleanup
+
+**Date:** 2026-11-05 · **Result: pass**
+
+**What was done**
+- Project A's Auth settings were set and checked by hand to match
+  `supabase/config.toml`. Each one is now in the production settings
+  checklist in `docs/operations.md`.
+- The other four Auth email templates (Invite user, Change email address,
+  Reset password, Reauthentication) were made code-only too, so no Auth
+  email carries a link (D18). `config.toml` mirrors all six.
+- Tests used `signInWithOtp` and `verifyOtp` with the publishable key against
+  Aamir's personal address. After the one successful sign-in, the session
+  was ended with a global sign-out.
+
+**Results**
+- **Expiry:** a code entered 11 min 22 s after it was sent was rejected
+  (`403 otp_expired`). A fresh code entered about 1.5 minutes after it was
+  sent signed in.
+- **Single use:** entering the same code again a second later was rejected
+  (`403 otp_expired`).
+- **Request rate:** a second code requested 7 s after the first was refused
+  (`429 over_email_send_rate_limit`, "only request this after 53 seconds"),
+  and no second email arrived.
+- **Guess rate:** 35 wrong codes in 5 seconds from one machine: 29 rejected
+  with `403 otp_expired`, then `429 over_request_rate_limit` from attempt 30
+  (3 code checks had run in the 2 minutes before). That matches the
+  default of about **30 code checks per 5 minutes per IP**.
+  - The limit is **per IP, not per email**. With a 10-minute code, one IP
+    gets at most **~60 guesses per code**, against 1,000,000 possible codes.
+  - A wrong code gets the same error as an expired one, so a guesser can't
+    tell them apart.
+- **Permissions for later tasks** (SQL editor, as `postgres`):
+  - `select` on `auth.sessions` and `delete from auth.sessions where false`
+    both ran without error. Task 22's 30-day session cleanup works as
+    planned, so the D23 fallback isn't needed.
+  - `rolbypassrls` is `true`, so `postgres` can grant `BYPASSRLS` to the
+    backup role (Task 24).
+
+**What this changes**
+- Nothing in the plan. The guess limit is Supabase's default; Turnstile
+  CAPTCHA stays the fallback if abuse ever appears (D32).
