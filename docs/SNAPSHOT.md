@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-06 (end of session 9: V5 done, the invite-only gate holds live; CI still blocked by a GitHub billing lock)
+**Last updated:** 2026-11-06 (end of session 9: V5 done, the invite-only gate holds live; billing lock cleared, CI green)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -192,8 +192,11 @@ not money. Core needs:
     - An approved `+approved` alias got its code in under a minute. The
       test user and list entry were deleted.
   - **D23's fallback isn't needed.**
-  - Four commits (including this snapshot). CI is still blocked by the
-    billing lock.
+  - Four commits, plus this snapshot fix.
+  - **Billing lock cleared by Aamir.** CI re-ran on `be03ea0` and passed:
+    typecheck, 3 unit tests, build, the bundle check, and **8 db security
+    tests** on a fresh local Supabase. It was the first CI run with db
+    tests.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -389,17 +392,13 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Aamir: clear the GitHub billing lock.** Go to github.com → Settings →
-   Billing and licensing, look for a locked-account or failed-payment
-   banner, and fix or remove the payment method it names. Then re-run the
-   latest CI run and check it's green, including the new db tests.
-2. **V4: the iPhone install check.** Aamir creates a free Cloudflare
+1. **V4: the iPhone install check.** Aamir creates a free Cloudflare
    account. The app is deployed once with the PWA and security headers,
    added to the iPhone home screen, and a sign-in code is used inside it.
    Wrangler may need the skipped workerd install script approved.
-3. **Then Phase 2** (Tasks 2–9: schema, RLS, and the §9 security tests).
+2. **Then Phase 2** (Tasks 2–9: schema, RLS, and the §9 security tests).
    Task 3 extends the hook to allow pending invites.
-4. **Ask before every commit and every push.** About 7 commits per
+3. **Ask before every commit and every push.** About 7 commits per
    session, or whatever cap Aamir sets for the day.
 
 ## Working conventions
