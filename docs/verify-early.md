@@ -99,3 +99,47 @@ in for them.
 **What this changes**
 - Nothing in the plan. The guess limit is Supabase's default; Turnstile
   CAPTCHA stays the fallback if abuse ever appears (D32).
+
+## V5: The invite-only gate sends nothing to unknown emails
+
+**Date:** 2026-11-06 · **Result: pass**
+
+**What was done**
+- Migration `sign_up_gate` added `public.approved_emails` (RLS on, no
+  policies, no client grants) and `public.hook_before_user_created`. The hook
+  lowercases and trims the email, allows it only if it's on the list, and
+  rejects everything else, including a missing or blank email, with `403
+  Signups not allowed`. Only `supabase_auth_admin` can execute it.
+- Locally, `tests/security/sign-up-gate.test.ts` (8 tests) runs against the
+  local stack with the hook on in `config.toml`.
+- On project A: `npx supabase db push --linked`. Aamir's address was added to
+  `approved_emails` in the SQL editor, and the Before User Created hook was
+  enabled under Authentication → Auth Hooks (Postgres,
+  `public.hook_before_user_created`).
+
+**Results**
+- **Locally:** all 8 tests pass. All failed before the migration.
+  - An unknown email is refused with 403, gets no email, and gets no
+    account. So does a password `signUp`.
+  - Approved emails and existing accounts get a code. Case doesn't matter.
+  - Clients can't call the hook (`42501`) or read `approved_emails`.
+- **On project A:**
+  - A code request for an unapproved `+test` alias of Aamir's inbox, and a
+    password sign-up for a `+test2` alias, were both refused with `403
+    Signups not allowed`. No email arrived after more than 5 minutes, and
+    no user was created.
+  - After an `+approved` alias was added to the list, its code request was
+    accepted and the code reached the inbox within the same minute. The test
+    user and list entry were deleted afterwards.
+
+**What this changes**
+- **D23's fallback isn't needed.** The hook keeps unknown emails from
+  getting anything.
+- **Admin `createUser` (secret key) skips the hook.** That isn't a client
+  path, but anything that creates users with the secret key (the invite
+  function, any server code) must check the invite list itself.
+- **Auth rejects an email with spaces around it as malformed,** before the
+  hook runs. The sign-in screen (Task 11) must trim and lowercase the email
+  before sending it.
+- The hook is on in the dashboard and in `config.toml`. Add it to the
+  production settings checklist.

@@ -64,4 +64,13 @@ of these by hand in the dashboard (verified 2026-11-05 unless noted).
 - [x] Invite user, Change email address, Reset password, Reauthentication:
   subject "Your Bills code", body = `supabase/templates/code.html`
 
+**Authentication → Auth Hooks** (verified 2026-11-06)
+- [x] Before User Created: enabled, Postgres, `public.hook_before_user_created`
+  (from migration `sign_up_gate`; applied with `npx supabase db push --linked`)
+
+**The approved list.** Emails that may sign up without an invite live in
+`public.approved_emails`. Manage them in the SQL editor, always lowercase:
+`insert into public.approved_emails (email) values ('<email>');`. No client
+can read or change this table.
+
 ## Restore
