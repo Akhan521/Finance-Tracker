@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-05 (end of session 8: V1 and V3 done; CI blocked by a GitHub billing lock)
+**Last updated:** 2026-11-06 (end of session 9: V5 done, the invite-only gate holds live; CI still blocked by a GitHub billing lock)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, and V3 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, V3, and V5 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -42,7 +42,8 @@ not money. Core needs:
 
 - **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
   session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI),
-  V1 (Gmail SMTP), and V3 (OTP limits) are done; V4 and V5 are next. Brainstorming followed the superpowers process: questions →
+  V1 (Gmail SMTP), V3 (OTP limits), and V5 (the invite-only gate) are
+  done; V4 (iPhone install) is next, then Phase 2. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -51,8 +52,10 @@ not money. Core needs:
   `src/lib/config.ts`, `vitest.config.ts`), local Supabase config
   (`supabase/`), `.env.example`, CI (`.github/workflows/ci.yml`),
   `supabase/functions/_shared/email.ts` (`sendEmail`),
-  `docs/verify-early.md` (V1, V3 results), and `docs/operations.md`
-  (accounts, secret names, the production settings checklist).
+  `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
+  (accounts, secret names, the production settings checklist), the first
+  migration (`sign_up_gate`), generated DB types, and the db test helpers
+  and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -169,6 +172,28 @@ not money. Core needs:
     "the job was not started because your account is locked due to a
     billing issue." It's not a code failure. The account's paid usage is
     $0 on the Free plan.
+- **Session 9 (2026-11-06):**
+  - **V5 passed.** Migration `sign_up_gate` adds `approved_emails` (RLS on,
+    unreadable by clients) and the Before User Created hook. The hook
+    allows only listed emails, compared as `lower(trim(email))`, and
+    refuses everything else with `403 Signups not allowed`.
+  - **8 security tests** in `tests/security/sign-up-gate.test.ts`, written
+    first and reviewed (opus):
+    - an unknown email gets no email and no account, and the same for a
+      password sign-up,
+    - approved emails and existing accounts get a code,
+    - clients can't call the hook or read the list.
+  - **Shared test helpers** (`tests/helpers/`), and `tests/**` is now
+    type-checked with `strict`.
+  - **Live project:** `db push --linked`, Aamir added to `approved_emails`,
+    and the hook enabled in Auth Hooks.
+    - Unapproved `+test` and `+test2` aliases were refused, with no email
+      and no account.
+    - An approved `+approved` alias got its code in under a minute. The
+      test user and list entry were deleted.
+  - **D23's fallback isn't needed.**
+  - Four commits (including this snapshot). CI is still blocked by the
+    billing lock.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -310,6 +335,26 @@ and the invite details.
 - **Claude wrote the verify-early results and `operations.md` itself,**
   because they record what was seen and set together in the session.
 
+**New calls from session 9 (not yet reviewed by Aamir):**
+- **Generated DB types start in V5** (`src/lib/database.types.ts`), the
+  first migration, instead of waiting for Task 2.
+- **The test helpers use the local publishable and secret keys** (D30),
+  read from `npx supabase status -o env`.
+- **Local Auth keeps the production email limit** (10 an hour); the
+  gate's tests send 3 emails a run. A rerun that trips the limit needs a
+  stack restart.
+- **Extra tests beyond the plan:** clients can't call the hook or read
+  `approved_emails`, and the hook's exact 403 for missing, blank, and
+  unknown emails.
+- **`tests/**` is type-checked, with `strict`.**
+- **Two facts later tasks must respect:**
+  - admin `createUser` (secret key) skips the hook, so server code that
+    creates users must check invites itself,
+  - Auth rejects emails with spaces around them, so the sign-in screen
+    trims and lowercases first (Task 11).
+- **The fix round after review was verified by Claude directly,** not by
+  a second subagent review (small, test-only changes).
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -347,18 +392,15 @@ None. Everything needed to plan the build is decided.
 1. **Aamir: clear the GitHub billing lock.** Go to github.com → Settings →
    Billing and licensing, look for a locked-account or failed-payment
    banner, and fix or remove the payment method it names. Then re-run the
-   last CI run (`gh run rerun <id>`) and check it's green.
-2. **V5: the invite-only gate.** This is mostly Claude's work, with no new
-   accounts: the "Before User Created" hook, `tests/helpers/env.ts` and
-   `db.ts`, and `sign-up-gate.test.ts`, then applying the hook to project
-   A and proving an unknown email gets no email and no account.
-3. **V4: the iPhone install check.** Aamir creates a free Cloudflare
-   account. The app is deployed once, added to the iPhone home screen,
-   and a sign-in code is used inside it. Wrangler may need the skipped
-   workerd install script approved first.
-4. **Then Phase 2** (Tasks 2–9: schema, RLS, and the §9 security tests).
-5. **Ask before every commit and every push.** About 7 commits per
-   session.
+   latest CI run and check it's green, including the new db tests.
+2. **V4: the iPhone install check.** Aamir creates a free Cloudflare
+   account. The app is deployed once with the PWA and security headers,
+   added to the iPhone home screen, and a sign-in code is used inside it.
+   Wrangler may need the skipped workerd install script approved.
+3. **Then Phase 2** (Tasks 2–9: schema, RLS, and the §9 security tests).
+   Task 3 extends the hook to allow pending invites.
+4. **Ask before every commit and every push.** About 7 commits per
+   session, or whatever cap Aamir sets for the day.
 
 ## Working conventions
 
