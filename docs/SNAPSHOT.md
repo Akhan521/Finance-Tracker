@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-06 (end of session 9: V5 done, the invite-only gate holds live; billing lock cleared, CI green)
+**Last updated:** 2026-11-07 (end of session 10: Phase 2 started, Task 2 done; V4 deferred until Aamir has his iPhone)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, V3, and V5 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Task 2 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -43,7 +43,8 @@ not money. Core needs:
 - **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
   session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI),
   V1 (Gmail SMTP), V3 (OTP limits), and V5 (the invite-only gate) are
-  done; V4 (iPhone install) is next, then Phase 2. Brainstorming followed the superpowers process: questions →
+  done. Phase 2 has started: Task 2 (profiles, households, memberships)
+  is done. V4 (iPhone install) is deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -54,8 +55,8 @@ not money. Core needs:
   `supabase/functions/_shared/email.ts` (`sendEmail`),
   `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
   (accounts, secret names, the production settings checklist), the first
-  migration (`sign_up_gate`), generated DB types, and the db test helpers
-  and security tests under `tests/`.
+  migrations (`sign_up_gate`, `households`), generated DB types, and the
+  db test helpers and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
   (D11, D11a, D11b).
@@ -197,6 +198,25 @@ not money. Core needs:
     typecheck, 3 unit tests, build, the bundle check, and **8 db security
     tests** on a fresh local Supabase. It was the first CI run with db
     tests.
+- **Session 10 (2026-11-07):**
+  - Aamir kept the day light (2–3 commits) and **deferred V4**, because it
+    needs his iPhone. Phase 2 doesn't depend on V4.
+  - **Task 2 done:** migration `households` adds `profiles`,
+    `households`, and `memberships`, with RLS and column grants as in the
+    plan's data model:
+    - the functions `is_member`, `is_owner`, `my_household_id`,
+      `create_household`, and `household_names`,
+    - a trigger that makes a profile for each new account, validating the
+      time zone hint,
+    - a deferred `memberships_keep_an_owner` rule.
+  - A profile is backfilled for existing accounts, so the live account
+    works after Task 9's push.
+  - **Review (opus) found the plan's "new functions start closed" line was
+    a no-op.** Proved on the local DB: a new function was callable by
+    anon. Fixed with `alter default privileges for role postgres …`. A new
+    `defaults.test.ts` proves it, and it fails under the old line.
+  - **18 db tests pass** (9 membership, 1 defaults, 8 gate), all written
+    first. Local only; nothing pushed to project A.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -358,6 +378,22 @@ and the invite details.
 - **The fix round after review was verified by Claude directly,** not by
   a second subagent review (small, test-only changes).
 
+**New calls from session 10 (not yet reviewed by Aamir):**
+- **Phase 2 started before V4.** Nothing in the schema depends on the
+  iPhone check.
+- **The households migration backfills profiles** for accounts that
+  already exist.
+- **The plan's Task 2 default-privileges line was replaced.** The plan's
+  intent (new functions and tables start closed) wins over its literal
+  text. Task 9's sweep should keep asserting this.
+- **Clients can edit `time_zone`,** so a trigger validates it
+  (`bad_time_zone`), beyond the plan.
+- **Deferred:**
+  - `create_household` turns a bad name into a raw constraint error, not
+    a plan key, and names are stored untrimmed (the UI trims, Task 11),
+  - a `not_signed_in` error key exists that isn't in the plan's list (add
+    it to `src/lib/errors.ts`).
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -392,13 +428,15 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **V4: the iPhone install check.** Aamir creates a free Cloudflare
-   account. The app is deployed once with the PWA and security headers,
-   added to the iPhone home screen, and a sign-in code is used inside it.
-   Wrangler may need the skipped workerd install script approved.
-2. **Then Phase 2** (Tasks 2–9: schema, RLS, and the §9 security tests).
-   Task 3 extends the hook to allow pending invites.
-3. **Ask before every commit and every push.** About 7 commits per
+1. **Task 3: invites, joining, roles, leaving, removal** (local; no
+   accounts). It also extends the sign-up hook to allow pending invites,
+   and covers D23's password-claim test.
+2. **Then Tasks 4–9** (bills, entries, payments, history, deletion, the
+   whole-schema sweep). Task 9 pushes the schema to project A.
+3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
+   free Cloudflare account. The app is deployed once, added to the home
+   screen, and a sign-in code is used inside it.
+4. **Ask before every commit and every push.** About 7 commits per
    session, or whatever cap Aamir sets for the day.
 
 ## Working conventions
