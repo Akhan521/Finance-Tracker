@@ -71,3 +71,13 @@ export const mailbox = {
     ).length;
   },
 };
+
+/** Create a household through the owner's own client; returns its id. */
+export async function newHousehold(owner: TestUser, name = 'Test household'): Promise<string> {
+  const { data, error } = await owner.client.rpc('create_household', {
+    p_name: name,
+    p_time_zone: 'America/Los_Angeles',
+  });
+  if (error || !data) throw new Error(`create_household failed: ${error?.message}`);
+  return data;
+}

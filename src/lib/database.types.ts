@@ -37,14 +37,85 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"households": {
+                  Row: {
+                    "created_at": string,"heads_up_sent_at": string | null,"id": string,"name": string,"retention_months": number | null,"time_zone": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"heads_up_sent_at"?: string | null,"id"?: string,"name": string,"retention_months"?: number | null,"time_zone": string
+                  }
+                  Update: {
+                    "created_at"?: string,"heads_up_sent_at"?: string | null,"id"?: string,"name"?: string,"retention_months"?: number | null,"time_zone"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"memberships": {
+                  Row: {
+                    "household_id": string,"joined_at": string,"profile_id": string,"role": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "household_id": string,"joined_at"?: string,"profile_id": string,"role": string
+                  }
+                  Update: {
+                    "household_id"?: string,"joined_at"?: string,"profile_id"?: string,"role"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "memberships_household_id_fkey"
+      columns: ["household_id"]
+isOneToOne: false
+      referencedRelation: "households"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "memberships_profile_id_fkey"
+      columns: ["profile_id"]
+isOneToOne: true
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"profiles": {
+                  Row: {
+                    "created_at": string,"display_name": string | null,"heads_up_sent_at": string | null,"id": string,"last_view": string,"lead_days": number,"remind_household": boolean,"remind_personal": boolean,"retention_months": number | null,"time_zone": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"display_name"?: string | null,"heads_up_sent_at"?: string | null,"id": string,"last_view"?: string,"lead_days"?: number,"remind_household"?: boolean,"remind_personal"?: boolean,"retention_months"?: number | null,"time_zone"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"display_name"?: string | null,"heads_up_sent_at"?: string | null,"id"?: string,"last_view"?: string,"lead_days"?: number,"remind_household"?: boolean,"remind_personal"?: boolean,"retention_months"?: number | null,"time_zone"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 }
           }
           Views: {
             [_ in never]: never
           }
           Functions: {
-            "hook_before_user_created":
+            "create_household":
+{ Args: { "p_name": string,"p_time_zone": string }; Returns: string
+                           },
+"hook_before_user_created":
 { Args: { "event": Json }; Returns: Json
+                           },
+"household_names":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "display_name": string,"profile_id": string
+            }[]
+                           },
+"is_member":
+{ Args: { "p_household": string }; Returns: boolean
+                           },
+"is_owner":
+{ Args: { "p_household": string }; Returns: boolean
+                           },
+"my_household_id":
+{ Args: Record<PropertyKey, never>; Returns: string
                            }
           }
           Enums: {
