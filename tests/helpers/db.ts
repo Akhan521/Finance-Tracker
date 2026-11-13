@@ -55,7 +55,7 @@ export async function newUser(opts: { name?: string } = {}): Promise<TestUser> {
   return { id: created.data.user.id, email, client };
 }
 
-type MailpitMessage = { To: { Address: string }[] };
+type MailpitMessage = { ID: string; To: { Address: string }[] };
 
 export const mailbox = {
   /** Number of messages whose recipients include exactly `to`. */
@@ -70,6 +70,24 @@ export const mailbox = {
       m.To.some((t) => t.Address.toLowerCase() === address),
     ).length;
   },
+
+  /** The 6-digit code in the newest message sent to `to`, or null if none. */
+  async latestCode(to: string): Promise<string | null> {
+    const address = to.trim().toLowerCase();
+    const query = encodeURIComponent(`to:"${address}"`);
+    const res = await fetch(`${env('MAILPIT_URL')}/api/v1/search?query=${query}&limit=200`);
+    if (!res.ok) throw new Error(`Mailpit search failed: ${res.status}`);
+    const body = (await res.json()) as { messages: MailpitMessage[] | null };
+    // Mailpit lists newest first.
+    const newest = (body.messages ?? []).find((m) =>
+      m.To.some((t) => t.Address.toLowerCase() === address),
+    );
+    if (!newest) return null;
+    const msg = await fetch(`${env('MAILPIT_URL')}/api/v1/message/${newest.ID}`);
+    if (!msg.ok) throw new Error(`Mailpit message failed: ${msg.status}`);
+    const { Text } = (await msg.json()) as { Text: string };
+    return Text.match(/\b\d{6}\b/)?.[0] ?? null;
+  },
 };
 
 /** Create a household through the owner's own client; returns its id. */
@@ -80,4 +98,19 @@ export async function newHousehold(owner: TestUser, name = 'Test household'): Pr
   });
   if (error || !data) throw new Error(`create_household failed: ${error?.message}`);
   return data;
+}
+
+/**
+ * Add `member` to `household` the real way: the owner invites the member's
+ * email through their own client, and the member accepts through theirs.
+ */
+export async function addMember(household: string, owner: TestUser, member: TestUser): Promise<void> {
+  const inv = await owner.client
+    .from('invites')
+    .insert({ household_id: household, email: member.email })
+    .select('id')
+    .single();
+  if (inv.error || !inv.data) throw new Error(`invite failed: ${inv.error?.message}`);
+  const acc = await member.client.rpc('accept_invite', { p_invite: inv.data.id });
+  if (acc.error) throw new Error(`accept_invite failed: ${acc.error.message}`);
 }

@@ -51,6 +51,32 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"invites": {
+                  Row: {
+                    "accepted_at": string | null,"cancelled_at": string | null,"created_at": string,"email": string,"expires_at": string,"household_id": string,"id": string,"invited_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "accepted_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"email": string,"expires_at"?: string,"household_id": string,"id"?: string,"invited_by"?: string | null
+                  }
+                  Update: {
+                    "accepted_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"email"?: string,"expires_at"?: string,"household_id"?: string,"id"?: string,"invited_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "invites_household_id_fkey"
+      columns: ["household_id"]
+isOneToOne: false
+      referencedRelation: "households"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "invites_invited_by_fkey"
+      columns: ["invited_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"memberships": {
                   Row: {
                     "household_id": string,"joined_at": string,"profile_id": string,"role": string
@@ -97,7 +123,10 @@ isOneToOne: true
             [_ in never]: never
           }
           Functions: {
-            "create_household":
+            "accept_invite":
+{ Args: { "p_invite": string }; Returns: string
+                           },
+"create_household":
 { Args: { "p_name": string,"p_time_zone": string }; Returns: string
                            },
 "hook_before_user_created":
@@ -116,6 +145,11 @@ isOneToOne: true
                            },
 "my_household_id":
 { Args: Record<PropertyKey, never>; Returns: string
+                           },
+"my_invites":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "expires_at": string,"household_name": string,"id": string,"invited_by_name": string
+            }[]
                            }
           }
           Enums: {
