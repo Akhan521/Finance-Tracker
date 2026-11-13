@@ -42,3 +42,7 @@ and the fallback:
 
 If it does work, use the fallback: turn off sign-ups and create accounts
 from the invite function.
+
+**Update (2026-11-12, Task 3).** The test above failed: the attacker's
+password survived. Decided in [D33](033-no-passwords-at-all.md): keep the
+hook, and blank every password in the database, so no password ever works.

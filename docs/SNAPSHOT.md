@@ -49,7 +49,7 @@ not money. Core needs:
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
   plan), `docs/requirements.md`, `docs/decisions/` (one file per
-  decision, D1–D32), the app scaffold (Vite + React + TypeScript,
+  decision, D1–D33), the app scaffold (Vite + React + TypeScript,
   `src/lib/config.ts`, `vitest.config.ts`), local Supabase config
   (`supabase/`), `.env.example`, CI (`.github/workflows/ci.yml`),
   `supabase/functions/_shared/email.ts` (`sendEmail`),
@@ -266,6 +266,7 @@ discussed).
 | [D30](decisions/030-new-supabase-api-keys.md) | **Use Supabase's new API keys:** the publishable key in the app, secret keys only in Edge Functions. Functions identify the caller from their token. The old anon and service_role keys are deprecated at the end of 2026. (Claude's call.) | Decided |
 | [D31](decisions/031-pause-check-on-live-project.md) | **Drop the early pause test (V2).** Supabase documents that API calls prevent pausing. Instead, watch the live project for a pause-warning email for its first 3 weeks. (Aamir's choice after the plan review.) | Decided |
 | [D32](decisions/032-public-repo-exposure.md) | **The public repo never identifies the live app:** no project URL or ref, Pages address, sender Gmail, bucket name, or family emails. The deploy script fills them in from git-ignored files. **Supabase Auth sends at most 10 emails an hour**, so code-request spam to a known email can't use up Gmail's daily limit. Turnstile CAPTCHA only if abuse appears. (Aamir, after a pre-push check.) | Decided |
+| [D33](decisions/033-no-passwords-at-all.md) | **No password ever works.** A trigger on Supabase's user table blanks every password, so an attacker's sign-up for an invited email (which D23's test showed survives the real person's code sign-in) can never be used. Sign-in stays code-only (D18); the invite design and the hook (D23) stay. Tests and CI guard it; D23's fallback stays in reserve. (Aamir, after Task 3's test failed.) | Decided |
 
 ## Facts about the household (from Aamir)
 
