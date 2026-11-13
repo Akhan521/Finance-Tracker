@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-07 (end of session 10: Phase 2 started, Task 2 done; V4 deferred until Aamir has his iPhone)
+**Last updated:** 2026-11-12 (end of session 11: Task 3 done; D23's password test failed, fixed by D33)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Task 2 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Tasks 2–3 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -43,8 +43,9 @@ not money. Core needs:
 - **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
   session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI),
   V1 (Gmail SMTP), V3 (OTP limits), and V5 (the invite-only gate) are
-  done. Phase 2 has started: Task 2 (profiles, households, memberships)
-  is done. V4 (iPhone install) is deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
+  done. Phase 2 is under way: Tasks 2 (profiles, households, memberships)
+  and 3 (invites, joining, roles) are done. V4 (iPhone install) is
+  deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -55,7 +56,7 @@ not money. Core needs:
   `supabase/functions/_shared/email.ts` (`sendEmail`),
   `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
   (accounts, secret names, the production settings checklist), the first
-  migrations (`sign_up_gate`, `households`), generated DB types, and the
+  migrations (`sign_up_gate`, `households`, `invites`), generated DB types, and the
   db test helpers and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
@@ -217,6 +218,33 @@ not money. Core needs:
     `defaults.test.ts` proves it, and it fails under the old line.
   - **18 db tests pass** (9 membership, 1 defaults, 8 gate), all written
     first. Local only; nothing pushed to project A.
+- **Session 11 (2026-11-12):**
+  - **D23's deciding test failed.** An attacker's password sign-up for an
+    invited email survived the real person's code sign-in, so the attacker
+    could sign in as them. It was caught locally; the live project wasn't
+    exposed (no invites there yet).
+  - **Aamir chose D33:** a trigger on `auth.users` blanks every password,
+    so no password ever works. The hook and the invite design stay.
+    - Review read GoTrue's source and confirmed it treats a blank password
+      as "no password".
+    - Tests cover three cases: the attacker's sign-up, an account created
+      with a password, and a signed-in user setting one.
+  - **Task 3 done** (migration `invites`):
+    - invites are owner-only: create, see, cancel, at most 20 a day, and a
+      cancelled invite can't be revived,
+    - `accept_invite` only for the invited, confirmed email (read from
+      `auth.users`), once, before expiry,
+    - `my_invites`,
+    - the hook also allows pending invites,
+    - leaving, removal, and role changes, with the last-owner rule intact.
+  - **Review (opus) found a leak:** the definer insert trigger ran its
+    checks before RLS, so a non-owner could learn whether an address was
+    invited. Fixed: the owner check runs first (`42501`).
+  - **36 db tests pass.** A full run sends 7 Auth emails and takes about
+    80 s (one 60 s wait in the D23 test).
+  - A slip, fixed before pushing: the D33 commit first swept in the
+    implementer's staged files. It was soft-reset and redone. Commits now
+    use an explicit file list.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -395,6 +423,20 @@ and the invite details.
   - a `not_signed_in` error key exists that isn't in the plan's list (add
     it to `src/lib/errors.ts`).
 
+**New calls from session 11 (not yet reviewed by Aamir):**
+- **New error key `invite_not_pending`** (cancelling an invite that isn't
+  pending). Add it to `src/lib/errors.ts` in Task 11.
+- **Invite inserts force server-set columns** (`invited_by`, dates).
+  Clients may send only `household_id` and `email`.
+- **`my_invites` also requires a confirmed email,** matching
+  `accept_invite`.
+- **Generated types stay as the generator's raw output,** never
+  reformatted.
+- **At Task 9's push:** check that the live database has the
+  `auth_users_blank_password` trigger and no password, and that the
+  profile trigger works. It's the first migration that writes to
+  `auth.users` on the live project.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -429,11 +471,10 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 3: invites, joining, roles, leaving, removal** (local; no
-   accounts). It also extends the sign-up hook to allow pending invites,
-   and covers D23's password-claim test.
-2. **Then Tasks 4–9** (bills, entries, payments, history, deletion, the
-   whole-schema sweep). Task 9 pushes the schema to project A.
+1. **Task 4: categories and bills** (local; no accounts, no iPhone).
+2. **Then Tasks 5–9** (entries, payments, history, deletion, the
+   whole-schema sweep). Task 9 pushes the schema to project A, with the
+   D33 checks above.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
    free Cloudflare account. The app is deployed once, added to the home
    screen, and a sign-in code is used inside it.
