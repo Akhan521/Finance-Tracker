@@ -114,3 +114,49 @@ export async function addMember(household: string, owner: TestUser, member: Test
   const acc = await member.client.rpc('accept_invite', { p_invite: inv.data.id });
   if (acc.error) throw new Error(`accept_invite failed: ${acc.error.message}`);
 }
+
+/**
+ * Create a bill through the user's own client (so RLS and triggers apply).
+ * The category is looked up by name within the bill's scope; the defaults
+ * seeded for every household and person include 'Housing'.
+ */
+export async function newBill(
+  user: TestUser,
+  opts: {
+    scope: 'household' | 'personal';
+    household?: string;
+    name?: string;
+    usualCents?: number;
+    schedule?: 'monthly' | 'weeks' | 'yearly' | 'once';
+    anchor?: string;
+    categoryName?: string;
+  },
+): Promise<{ id: string }> {
+  if (opts.scope === 'household' && !opts.household) {
+    throw new Error('newBill: household scope needs a household id');
+  }
+  const categoryName = opts.categoryName ?? 'Housing';
+  const cat = await user.client
+    .from('categories')
+    .select('id')
+    .eq('name', categoryName)
+    .eq(opts.scope === 'household' ? 'household_id' : 'owner_id', opts.scope === 'household' ? opts.household! : user.id)
+    .single();
+  if (cat.error || !cat.data) throw new Error(`category lookup failed: ${cat.error?.message}`);
+  const schedule = opts.schedule ?? 'monthly';
+  const ins = await user.client
+    .from('bills')
+    .insert({
+      ...(opts.scope === 'household' ? { household_id: opts.household! } : { owner_id: user.id }),
+      category_id: cat.data.id,
+      name: opts.name ?? 'Test bill',
+      usual_cents: opts.usualCents ?? 1980,
+      schedule,
+      ...(schedule === 'weeks' ? { every_weeks: 2 } : {}),
+      anchor_date: opts.anchor ?? new Date().toISOString().slice(0, 10),
+    })
+    .select('id')
+    .single();
+  if (ins.error || !ins.data) throw new Error(`bill insert failed: ${ins.error?.message}`);
+  return { id: ins.data.id };
+}

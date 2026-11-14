@@ -37,6 +37,64 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"bills": {
+                  Row: {
+                    "anchor_date": string,"archived_at": string | null,"category_id": string,"created_at": string,"every_weeks": number | null,"household_id": string | null,"id": string,"is_credit_card": boolean,"last4": string | null,"name": string,"nickname": string | null,"owner_id": string | null,"pay_url": string | null,"schedule": string,"usual_cents": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "anchor_date": string,"archived_at"?: string | null,"category_id": string,"created_at"?: string,"every_weeks"?: number | null,"household_id"?: string | null,"id"?: string,"is_credit_card"?: boolean,"last4"?: string | null,"name": string,"nickname"?: string | null,"owner_id"?: string | null,"pay_url"?: string | null,"schedule": string,"usual_cents": number
+                  }
+                  Update: {
+                    "anchor_date"?: string,"archived_at"?: string | null,"category_id"?: string,"created_at"?: string,"every_weeks"?: number | null,"household_id"?: string | null,"id"?: string,"is_credit_card"?: boolean,"last4"?: string | null,"name"?: string,"nickname"?: string | null,"owner_id"?: string | null,"pay_url"?: string | null,"schedule"?: string,"usual_cents"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bills_category_id_fkey"
+      columns: ["category_id"]
+isOneToOne: false
+      referencedRelation: "categories"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bills_household_id_fkey"
+      columns: ["household_id"]
+isOneToOne: false
+      referencedRelation: "households"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bills_owner_id_fkey"
+      columns: ["owner_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"categories": {
+                  Row: {
+                    "color": string,"household_id": string | null,"id": string,"is_credit_card": boolean,"name": string,"owner_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "color": string,"household_id"?: string | null,"id"?: string,"is_credit_card"?: boolean,"name": string,"owner_id"?: string | null
+                  }
+                  Update: {
+                    "color"?: string,"household_id"?: string | null,"id"?: string,"is_credit_card"?: boolean,"name"?: string,"owner_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "categories_household_id_fkey"
+      columns: ["household_id"]
+isOneToOne: false
+      referencedRelation: "households"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "categories_owner_id_fkey"
+      columns: ["owner_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"households": {
                   Row: {
                     "created_at": string,"heads_up_sent_at": string | null,"id": string,"name": string,"retention_months": number | null,"time_zone": string
@@ -126,6 +184,9 @@ isOneToOne: true
             "accept_invite":
 { Args: { "p_invite": string }; Returns: string
                            },
+"can_access_bill":
+{ Args: { "p_bill": string }; Returns: boolean
+                           },
 "create_household":
 { Args: { "p_name": string,"p_time_zone": string }; Returns: string
                            },
@@ -150,6 +211,9 @@ isOneToOne: true
 { Args: Record<PropertyKey, never>; Returns: {
               "expires_at": string,"household_name": string,"id": string,"invited_by_name": string
             }[]
+                           },
+"seed_default_categories":
+{ Args: { "p_household": string,"p_owner": string }; Returns: undefined
                            }
           }
           Enums: {
