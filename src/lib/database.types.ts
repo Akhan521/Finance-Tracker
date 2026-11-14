@@ -95,6 +95,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"entries": {
+                  Row: {
+                    "bill_id": string,"due_date": string,"expected_cents": number,"id": string,"minimum_cents": number | null,"statement_cents": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "bill_id": string,"due_date": string,"expected_cents": number,"id"?: string,"minimum_cents"?: number | null,"statement_cents"?: number | null
+                  }
+                  Update: {
+                    "bill_id"?: string,"due_date"?: string,"expected_cents"?: number,"id"?: string,"minimum_cents"?: number | null,"statement_cents"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "entries_bill_id_fkey"
+      columns: ["bill_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"households": {
                   Row: {
                     "created_at": string,"heads_up_sent_at": string | null,"id": string,"name": string,"retention_months": number | null,"time_zone": string
@@ -190,6 +210,15 @@ isOneToOne: true
 "create_household":
 { Args: { "p_name": string,"p_time_zone": string }; Returns: string
                            },
+"due_dates":
+{ Args: { "p_anchor": string,"p_every_weeks": number,"p_from": string,"p_schedule": string,"p_through": string }; Returns: string[]
+                           },
+"extend_entries":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"generate_entries":
+{ Args: { "p_bill": string,"p_from": string }; Returns: undefined
+                           },
 "hook_before_user_created":
 { Args: { "event": Json }; Returns: Json
                            },
@@ -211,6 +240,9 @@ isOneToOne: true
 { Args: Record<PropertyKey, never>; Returns: {
               "expires_at": string,"household_name": string,"id": string,"invited_by_name": string
             }[]
+                           },
+"scope_today":
+{ Args: { "p_household": string,"p_owner": string }; Returns: string
                            },
 "seed_default_categories":
 { Args: { "p_household": string,"p_owner": string }; Returns: undefined
