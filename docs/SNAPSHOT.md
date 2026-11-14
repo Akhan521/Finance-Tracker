@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-12 (end of session 11: Task 3 done; D23's password test failed, fixed by D33)
+**Last updated:** 2026-11-13 (end of session 12: Tasks 4 and 5 done, bills, categories, schedules, entries)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Tasks 2–3 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Tasks 2–5 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -43,9 +43,10 @@ not money. Core needs:
 - **Stage:** **Building (since 2026-11-01).** The plan, D23–D32, and the
   session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI),
   V1 (Gmail SMTP), V3 (OTP limits), and V5 (the invite-only gate) are
-  done. Phase 2 is under way: Tasks 2 (profiles, households, memberships)
-  and 3 (invites, joining, roles) are done. V4 (iPhone install) is
-  deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
+  done. Phase 2 is under way: Tasks 2 (profiles, households, memberships),
+  3 (invites, joining, roles), 4 (categories, bills), and 5 (schedules,
+  stored entries) are done. V4 (iPhone install) is deferred until Aamir
+  has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -56,7 +57,8 @@ not money. Core needs:
   `supabase/functions/_shared/email.ts` (`sendEmail`),
   `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
   (accounts, secret names, the production settings checklist), the first
-  migrations (`sign_up_gate`, `households`, `invites`), generated DB types, and the
+  migrations (`sign_up_gate`, `households`, `invites`, `bills`,
+  `entries`), generated DB types, and the
   db test helpers and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
@@ -245,6 +247,33 @@ not money. Core needs:
   - A slip, fixed before pushing: the D33 commit first swept in the
     implementer's staged files. It was soft-reset and redone. Commits now
     use an explicit file list.
+- **Session 12 (2026-11-13):**
+  - **Task 4 done** (migration `bills`): `categories` and `bills`.
+    - Household bills: shared with members. Personal bills: private to
+      their owner.
+    - Scope is fixed at creation, and there is no delete.
+    - Input checks: last4 is 4 digits; `pay_url` is https only, at most
+      500 characters, no whitespace; money is bounded; names can't be
+      blank.
+    - Six default categories for every new household and person. Existing
+      ones were backfilled, including the live account.
+    - `can_access_bill`, which later tasks build on.
+    - The category check is SECURITY INVOKER, so it can't leak (the lesson
+      from Task 3).
+  - **Review (opus) found** that a weekly bill could be saved without its
+    interval: a CHECK passed on NULL. Fixed, with tests.
+  - **Task 5 done** (migration `entries`):
+    - `due_dates`, the one schedule calculation (the month-end clamp
+      doesn't drift; Feb 29 falls on Feb 28),
+    - `scope_today`, and entries stored 12 months ahead,
+    - the sync trigger for schedule changes, archive and restore, and
+      amount changes,
+    - only credit card entries can hold a minimum or statement balance.
+  - **Review (opus) found** that a bill with an ancient anchor created
+    unlimited entries (year 0001 gave 105,757). It also found two tests
+    that couldn't fail. Fixed: see the call below, plus tightened tests
+    (to-the-day horizon, two time zones a full day apart).
+  - **60 db tests pass.** Two commits, plus this snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -437,6 +466,26 @@ and the invite details.
   profile trigger works. It's the first migration that writes to
   `auth.users` on the live project.
 
+**New calls from session 12 (not yet reviewed by Aamir):**
+- **A new bill's entries start from its due date, but at most 1 month
+  back.** A just-missed bill still shows as overdue, and a mistyped year
+  can't flood the database. Schedule changes and restores never add past
+  entries.
+  - Edge case: a one-time bill dated more than a month ago gets no entry.
+- **"Untouched" future entries currently means "no saved minimum".**
+  Task 6 adds "and no payments", in both the schedule-change and the
+  usual-amount paths.
+- **The six category colors** (Housing #F7D9C4, Car #CFE3F7, Utilities
+  #FBEFB5, Insurance #D9D2F0, Credit card #F5CBD6, Internet & phone
+  #CDEBDD) sit close to the status colors (butter, rose, sage). Task 11
+  should pick category hues that are clearly distinct from the status
+  colors.
+- **Names are trimmed for length and uniqueness checks.** Whitespace-only
+  names are refused, and "Housing " counts as "Housing".
+- **`scope_today` stays security definer.** It can reveal a household's
+  time zone to a signed-in user who knows its id, which was judged
+  acceptable.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -471,10 +520,11 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 4: categories and bills** (local; no accounts, no iPhone).
-2. **Then Tasks 5–9** (entries, payments, history, deletion, the
-   whole-schema sweep). Task 9 pushes the schema to project A, with the
-   D33 checks above.
+1. **Task 6: payments and entry status** (local; no accounts, no
+   iPhone). It adds `payments`, `status_rule`, and `entry_view`, and
+   narrows the entry sync to "no payments".
+2. **Then Tasks 7–9** (history, deletion, the whole-schema sweep). Task 9
+   pushes the schema to project A, with the D33 checks.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
    free Cloudflare account. The app is deployed once, added to the home
    screen, and a sign-in code is used inside it.
