@@ -115,6 +115,44 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"history": {
+                  Row: {
+                    "actor_id": string | null,"bill_id": string | null,"created_at": string,"detail": NonNullable<Json>,"household_id": string | null,"id": number,"kind": string,"owner_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"bill_id"?: string | null,"created_at"?: string,"detail"?: NonNullable<Json>,"household_id"?: string | null,"id"?: never,"kind": string,"owner_id"?: string | null
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"bill_id"?: string | null,"created_at"?: string,"detail"?: NonNullable<Json>,"household_id"?: string | null,"id"?: never,"kind"?: string,"owner_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "history_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "history_bill_id_fkey"
+      columns: ["bill_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "history_household_id_fkey"
+      columns: ["household_id"]
+isOneToOne: false
+      referencedRelation: "households"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "history_owner_id_fkey"
+      columns: ["owner_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"households": {
                   Row: {
                     "created_at": string,"heads_up_sent_at": string | null,"id": string,"name": string,"retention_months": number | null,"time_zone": string
@@ -282,6 +320,9 @@ isOneToOne: false
                            },
 "generate_entries":
 { Args: { "p_bill": string,"p_from": string }; Returns: undefined
+                           },
+"history_actor":
+{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "hook_before_user_created":
 { Args: { "event": Json }; Returns: Json
