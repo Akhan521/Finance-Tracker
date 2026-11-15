@@ -372,3 +372,53 @@ describe('stored entries', () => {
     expect(row).toMatchObject({ minimum_cents: null, statement_cents: null });
   });
 });
+
+describe('entries with payments survive changes', () => {
+  async function paidFuture() {
+    const s = await householdBill({ offsetDays: 5 });
+    const [e] = await sql`
+      select id, due_date::text d from public.entries
+      where bill_id = ${s.bill.id} and due_date = ${addDays(s.today, 5)}::date`;
+    const r = await s.user.client
+      .from('payments')
+      .insert({ entry_id: e!.id as string, amount_cents: 100, paid_on: s.today });
+    expect(r.error).toBeNull();
+    return { ...s, entryId: e!.id as string, due: e!.d as string };
+  }
+  const exists = async (id: string) =>
+    (await sql`select 1 from public.entries where id = ${id}`).length === 1;
+
+  test('a future entry with a payment survives a schedule change', async () => {
+    const s = await paidFuture();
+    const r = await s.user.client.from('bills').update({ schedule: 'yearly' }).eq('id', s.bill.id);
+    expect(r.error).toBeNull();
+    expect(await exists(s.entryId)).toBe(true);
+    // Unpaid monthly entries are gone; yearly adds nothing else within 12 months.
+    const rows = await entriesOf(s.bill.id);
+    expect(rows.filter((x) => x.due_date >= s.today).map((x) => x.id)).toEqual([s.entryId]);
+  });
+
+  test('a future entry with a payment survives archiving', async () => {
+    const s = await paidFuture();
+    const r = await s.user.client
+      .from('bills')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', s.bill.id);
+    expect(r.error).toBeNull();
+    expect(await exists(s.entryId)).toBe(true);
+    const rows = await entriesOf(s.bill.id);
+    expect(rows.filter((x) => x.due_date >= s.today)).toHaveLength(1);
+  });
+
+  test("a usual_cents change doesn't alter a paid future entry's expected_cents", async () => {
+    const s = await paidFuture();
+    const r = await s.user.client.from('bills').update({ usual_cents: 5555 }).eq('id', s.bill.id);
+    expect(r.error).toBeNull();
+    const rows = await entriesOf(s.bill.id);
+    const paid = rows.find((x) => x.id === s.entryId)!;
+    expect(paid.expected_cents).toBe(1980);
+    const unpaid = rows.filter((x) => x.id !== s.entryId && x.due_date >= s.today);
+    expect(unpaid.length).toBeGreaterThan(0);
+    expect(unpaid.every((x) => x.expected_cents === 5555)).toBe(true);
+  });
+});

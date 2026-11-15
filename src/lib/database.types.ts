@@ -181,6 +181,38 @@ isOneToOne: true
       referencedColumns: ["id"]
     }
                   ]
+                },"payments": {
+                  Row: {
+                    "amount_cents": number,"created_at": string,"entry_id": string,"id": string,"paid_by": string | null,"paid_on": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amount_cents": number,"created_at"?: string,"entry_id": string,"id"?: string,"paid_by"?: string | null,"paid_on": string
+                  }
+                  Update: {
+                    "amount_cents"?: number,"created_at"?: string,"entry_id"?: string,"id"?: string,"paid_by"?: string | null,"paid_on"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payments_entry_id_fkey"
+      columns: ["entry_id"]
+isOneToOne: false
+      referencedRelation: "entries"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "payments_entry_id_fkey"
+      columns: ["entry_id"]
+isOneToOne: false
+      referencedRelation: "entry_view"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "payments_paid_by_fkey"
+      columns: ["paid_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"profiles": {
                   Row: {
                     "created_at": string,"display_name": string | null,"heads_up_sent_at": string | null,"id": string,"last_view": string,"lead_days": number,"remind_household": boolean,"remind_personal": boolean,"retention_months": number | null,"time_zone": string
@@ -198,7 +230,39 @@ isOneToOne: true
                 }
           }
           Views: {
-            [_ in never]: never
+            "entry_view": {
+                  Row: {
+                    "archived_at": string | null,"bill_id": string,"bill_name": string,"category_id": string,"due_date": string,"expected_cents": number,"household_id": string | null,"id": string,"is_credit_card": boolean,"minimum_cents": number | null,"owner_id": string | null,"paid_cents": number | null,"statement_cents": number | null,"status": string | null,"target_cents": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "bills_category_id_fkey"
+      columns: ["category_id"]
+isOneToOne: false
+      referencedRelation: "categories"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bills_household_id_fkey"
+      columns: ["household_id"]
+isOneToOne: false
+      referencedRelation: "households"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bills_owner_id_fkey"
+      columns: ["owner_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "entries_bill_id_fkey"
+      columns: ["bill_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
             "accept_invite":
@@ -246,6 +310,9 @@ isOneToOne: true
                            },
 "seed_default_categories":
 { Args: { "p_household": string,"p_owner": string }; Returns: undefined
+                           },
+"status_rule":
+{ Args: { "p_due": string,"p_is_card": boolean,"p_minimum": number,"p_paid": number,"p_today": string }; Returns: string
                            }
           }
           Enums: {
