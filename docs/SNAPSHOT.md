@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-13 (end of session 12: Tasks 4 and 5 done, bills, categories, schedules, entries)
+**Last updated:** 2026-11-15 (end of session 13: security fix, Tasks 6 and 7 done, payments, status, history)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Tasks 2–5 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Tasks 2–7 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -44,9 +44,9 @@ not money. Core needs:
   session 5 calls were approved by Aamir. Task 1 (repo, tooling, CI),
   V1 (Gmail SMTP), V3 (OTP limits), and V5 (the invite-only gate) are
   done. Phase 2 is under way: Tasks 2 (profiles, households, memberships),
-  3 (invites, joining, roles), 4 (categories, bills), and 5 (schedules,
-  stored entries) are done. V4 (iPhone install) is deferred until Aamir
-  has his iPhone. Brainstorming followed the superpowers process: questions →
+  3 (invites, joining, roles), 4 (categories, bills), 5 (schedules,
+  stored entries), 6 (payments, entry status), and 7 (change history) are
+  done. V4 (iPhone install) is deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -58,7 +58,8 @@ not money. Core needs:
   `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
   (accounts, secret names, the production settings checklist), the first
   migrations (`sign_up_gate`, `households`, `invites`, `bills`,
-  `entries`), generated DB types, and the
+  `entries`, `lock_schedule_helpers`, `payments`, `history`), generated
+  DB types, and the
   db test helpers and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
@@ -274,6 +275,32 @@ not money. Core needs:
     that couldn't fail. Fixed: see the call below, plus tightened tests
     (to-the-day horizon, two time zones a full day apart).
   - **60 db tests pass.** Two commits, plus this snapshot.
+- **Session 13 (2026-11-15):**
+  - **Security fix first** (migration `lock_schedule_helpers`). After
+    session 12's push, an automated security review flagged two issues;
+    neither was live yet:
+    - `due_dates` is now revoked from clients. A client could have asked it
+      for huge ranges.
+    - `scope_today` is now SECURITY INVOKER. As definer, it revealed any
+      household's time zone to anyone who knew the id.
+    - Review (opus) confirmed both closed in the catalog, with no indirect
+      path. Entry generation and Task 6's view still get the right dates.
+  - **Task 6 done** (migration `payments`):
+    - `payments`: `paid_by` is forced to the caller; no update; undo is a
+      delete; access follows the bill,
+    - `status_rule`, the one copy of the rule,
+    - `entry_view` (security_invoker): paid, target, and status, in the
+      scope's time zone,
+    - future entries with a payment now survive schedule changes,
+      archiving, and amount changes (Task 5's staged gap, now closed).
+  - **Task 7 done** (migration `history`):
+    - read-only history for bills, payments, invites, and membership,
+    - personal history goes only to its owner,
+    - invite rows go only to owners (§9 wins over the plan's data model),
+    - last4 and pay_url are recorded only as "changed",
+    - triggers skip when the parent is gone, so deleting a household or an
+      account never fails.
+  - **88 db tests pass.** Three commits, plus this snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -482,9 +509,30 @@ and the invite details.
   colors.
 - **Names are trimmed for length and uniqueness checks.** Whitespace-only
   names are refused, and "Housing " counts as "Housing".
-- **`scope_today` stays security definer.** It can reveal a household's
-  time zone to a signed-in user who knows its id, which was judged
-  acceptable.
+- ~~`scope_today` stays security definer.~~ Superseded in session 13: it
+  is now SECURITY INVOKER (see below).
+
+**New calls from session 13 (not yet reviewed by Aamir):**
+- **`scope_today` is SECURITY INVOKER and `due_dates` is internal-only.**
+  The plan's data model listed both as definer and client-callable.
+- **Plan correction:** Task 6's time zone test assumed daylight time on
+  2027-03-10, but US daylight saving starts 2027-03-14. The test instants
+  were corrected (07:30Z upcoming, 08:30Z overdue).
+- **A new usual amount updates every future entry with no payment** (D25,
+  "future unpaid"). A saved minimum doesn't block it, which keeps
+  `target_cents` from going stale.
+- **Invite history (`invite_sent`, `invite_cancelled`) is owners-only,**
+  per design §9. Other household history goes to all members.
+- **History triggers skip writing when the parent is gone,** so cascaded
+  deletes never fail. Deleting a household leaves no event.
+- **For Task 8:**
+  - Deleting an account in the same transaction that inserted one of its
+    payments fails (a pre-existing FK ordering issue). Don't do both in one
+    transaction.
+  - Invite rows and invite history keep an invitee's email after they
+    delete their account. Decide whether to clear it.
+  - Expired invites that are auto-retired show as `invite_cancelled` by
+    the re-inviting owner.
 
 Any new calls go in a fresh list here.
 
@@ -520,11 +568,11 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 6: payments and entry status** (local; no accounts, no
-   iPhone). It adds `payments`, `status_rule`, and `entry_view`, and
-   narrows the entry sync to "no payments".
-2. **Then Tasks 7–9** (history, deletion, the whole-schema sweep). Task 9
-   pushes the schema to project A, with the D33 checks.
+1. **Task 8: deleting a household and deleting an account** (local; no
+   iPhone). Carry the Task 8 notes above.
+2. **Task 9: the whole-schema security sweep,** then the first push of the
+   schema to project A, with the D33 checks (password trigger, no
+   passwords, profile trigger working).
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
    free Cloudflare account. The app is deployed once, added to the home
    screen, and a sign-in code is used inside it.
