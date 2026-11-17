@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-15 (end of session 13: security fix, Tasks 6 and 7 done, payments, status, history)
+**Last updated:** 2026-11-16 (end of session 14: Task 8 done, Task 9's sweep done, test suite audited; schema not yet pushed live)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, and Tasks 2–7 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, Tasks 2–8, and Task 9's sweep are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -45,21 +45,24 @@ not money. Core needs:
   V1 (Gmail SMTP), V3 (OTP limits), and V5 (the invite-only gate) are
   done. Phase 2 is under way: Tasks 2 (profiles, households, memberships),
   3 (invites, joining, roles), 4 (categories, bills), 5 (schedules,
-  stored entries), 6 (payments, entry status), and 7 (change history) are
-  done. V4 (iPhone install) is deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
+  stored entries), 6 (payments, entry status), 7 (change history), and
+  8 (deleting households and accounts) are done, plus Task 9's
+  whole-schema sweep. Task 9's last step, the first push of the schema to
+  project A, is next. V4 (iPhone install) is deferred until Aamir has his
+  iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
   plan), `docs/requirements.md`, `docs/decisions/` (one file per
-  decision, D1–D33), the app scaffold (Vite + React + TypeScript,
+  decision, D1–D34), the app scaffold (Vite + React + TypeScript,
   `src/lib/config.ts`, `vitest.config.ts`), local Supabase config
   (`supabase/`), `.env.example`, CI (`.github/workflows/ci.yml`),
   `supabase/functions/_shared/email.ts` (`sendEmail`),
   `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
   (accounts, secret names, the production settings checklist), the first
   migrations (`sign_up_gate`, `households`, `invites`, `bills`,
-  `entries`, `lock_schedule_helpers`, `payments`, `history`), generated
-  DB types, and the
+  `entries`, `lock_schedule_helpers`, `payments`, `history`, `deletion`),
+  the `delete-account` Edge Function, generated DB types, and the
   db test helpers and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
@@ -301,6 +304,48 @@ not money. Core needs:
     - triggers skip when the parent is gone, so deleting a household or an
       account never fails.
   - **88 db tests pass.** Three commits, plus this snapshot.
+- **Session 14 (2026-11-16):**
+  - **Task 8 done** (migration `deletion` plus the `delete-account` Edge
+    Function):
+    - `delete_household`: sole owner only, with the row locked,
+    - `account_deletion_blocker`,
+    - an `auth.users` delete trigger that erases the person's email from
+      invites and invite history.
+  - **The function:**
+    - identity only from `auth.getUser(token)`,
+    - the blocker is checked as the user,
+    - the secret key is used only for `deleteUser`,
+    - CORS from an `ALLOWED_ORIGIN` list,
+    - strict key parsing that fails closed,
+    - supabase-js pinned exactly, with a `deno.lock` that holds integrity
+      hashes.
+  - **Three review rounds (opus).** Live probes found no way to delete
+    anyone but the token's owner. The second round caught a deadlock that
+    the first round's new lock had introduced; fixed with `FOR NO KEY
+    UPDATE` and a concurrency test. A pre-existing write-skew in the
+    last-owner rule (Task 2) was also closed and tested.
+  - **Task 9's sweep:** `schema.test.ts`, 24 catalog checks with "proves it
+    bites" tests:
+    - RLS everywhere, invoker views, a pinned `search_path`, definer
+      functions owned by postgres,
+    - no PUBLIC execute; anon gets nothing, including column grants and
+      default ACLs,
+    - authenticated may call exactly 12 functions, matched by full
+      signature.
+    - The schema passed on the first run.
+  - **Test audit (at Aamir's request).** Two opus auditors read every
+    test. The verdict was trustworthy: of 109, 97 were Sound, 11 Weak, 1 a
+    flaky risk, and 0 Wrong, and the product behaved correctly
+    throughout. Fixed the 4 Important gaps:
+    - the "today" boundary, now biting at every hour across two zones,
+    - housemate profile edits,
+    - member household updates,
+    - blocker error checks.
+    - Plus minors, and a 30 s db test timeout.
+  - **D34** (Aamir): housemates may read each other's full profile row,
+    but not edit it. A test pins it.
+  - **142 db tests pass.** Four commits, plus this snapshot. CI checks
+    them on push.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -351,6 +396,7 @@ discussed).
 | [D31](decisions/031-pause-check-on-live-project.md) | **Drop the early pause test (V2).** Supabase documents that API calls prevent pausing. Instead, watch the live project for a pause-warning email for its first 3 weeks. (Aamir's choice after the plan review.) | Decided |
 | [D32](decisions/032-public-repo-exposure.md) | **The public repo never identifies the live app:** no project URL or ref, Pages address, sender Gmail, bucket name, or family emails. The deploy script fills them in from git-ignored files. **Supabase Auth sends at most 10 emails an hour**, so code-request spam to a known email can't use up Gmail's daily limit. Turnstile CAPTCHA only if abuse appears. (Aamir, after a pre-push check.) | Decided |
 | [D33](decisions/033-no-passwords-at-all.md) | **No password ever works.** A trigger on Supabase's user table blanks every password, so an attacker's sign-up for an invited email (which D23's test showed survives the real person's code sign-in) can never be used. Sign-in stays code-only (D18); the invite design and the hook (D23) stay. Tests and CI guard it; D23's fallback stays in reserve. (Aamir, after Task 3's test failed.) | Decided |
+| [D34](decisions/034-housemates-read-full-profiles.md) | **Housemates may read each other's full profile row** (time zone, reminder settings), as the plan's data model has it, but **not edit it**; the app shows only names. A deliberate exception to §9's wording; a test pins it. (Aamir, after the test audit.) | Decided |
 
 ## Facts about the household (from Aamir)
 
@@ -512,7 +558,7 @@ and the invite details.
 - ~~`scope_today` stays security definer.~~ Superseded in session 13: it
   is now SECURITY INVOKER (see below).
 
-**New calls from session 13 (not yet reviewed by Aamir):**
+**Calls from session 13** (see session 14 for follow-ups):
 - **`scope_today` is SECURITY INVOKER and `due_dates` is internal-only.**
   The plan's data model listed both as definer and client-callable.
 - **Plan correction:** Task 6's time zone test assumed daylight time on
@@ -533,6 +579,41 @@ and the invite details.
     delete their account. Decide whether to clear it.
   - Expired invites that are auto-retired show as `invite_cancelled` by
     the re-inviting owner.
+
+**New calls from session 14 (not yet reviewed by Aamir):**
+- **`delete-account` CORS** uses an `ALLOWED_ORIGIN` list (exact match).
+  The local value is `http://localhost:5173`; production is set at deploy.
+- **The function prefers the new key env vars** (`SUPABASE_*_KEYS`, JSON
+  maps; `default` wins). It falls back to the legacy names only when those
+  are absent, and fails closed if they're present but invalid.
+- **Edge Function libraries are pinned exactly.** `delete-account` keeps a
+  `deno.lock`. Future functions that import `_shared/email.ts` need their
+  own lock.
+- **Locks:**
+  - `delete_household` takes `FOR UPDATE` on the household,
+  - the last-owner trigger takes `FOR NO KEY UPDATE`, which serializes
+    without clashing with history's foreign keys,
+  - this relies on READ COMMITTED.
+- **The sweep's anon allow-list is `health_check`** (Task 23). The
+  authenticated allow-list is 12 exact signatures; add to it when a client
+  function is added.
+- **To verify at the first deploy:**
+  - the `delete-account` preflight (the function, not the gateway, answers
+    `OPTIONS`),
+  - the hosted key env names and JSON shape,
+  - a throwaway 204 delete,
+  - a 401 for a revoked token,
+  - a 409 for `last_owner`,
+  - that `deno.lock` v5 is accepted,
+  - that `verify_jwt` still works if the project moves to asymmetric
+    signing keys.
+- **For Task 19:** map `could_not_delete` (not a plan key) in
+  `src/lib/errors.ts`, and treat `FunctionsFetchError` (a gateway 401 with
+  no CORS headers) as "sign in again".
+- **Kept as is:** expired invites that are auto-retired show as
+  `invite_cancelled` by the re-inviting owner.
+- **A full local test run sends 7 Auth emails** (the limit is 10 an hour).
+  A second full run within the hour needs a stack restart.
 
 Any new calls go in a fresh list here.
 
@@ -568,11 +649,16 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 8: deleting a household and deleting an account** (local; no
-   iPhone). Carry the Task 8 notes above.
-2. **Task 9: the whole-schema security sweep,** then the first push of the
-   schema to project A, with the D33 checks (password trigger, no
-   passwords, profile trigger working).
+1. **Task 9, Step 4: the first push of the schema to project A** (needs
+   Aamir's OK; it changes the live database). Run `npx supabase db push
+   --linked` (10 migrations). Then check that:
+   - the `auth_users_blank_password` trigger exists, and no account has a
+     password,
+   - Aamir's account has a profile and the six default categories,
+   - the hook is still enabled.
+2. **Then Phase 3: the app** (Task 10 onward). The pure logic (Task 10) is
+   local; the screens (Tasks 11+) are shown at iPhone size in the browser
+   before each commit.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
    free Cloudflare account. The app is deployed once, added to the home
    screen, and a sign-in code is used inside it.
