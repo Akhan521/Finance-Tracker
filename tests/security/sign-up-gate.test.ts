@@ -96,10 +96,16 @@ describe('invite-only sign-up gate', () => {
     const expired = fresh();
     const setup = await owner.client.from('invites').insert({ household_id: h, email: expired });
     expect(setup.error).toBeNull();
+    // Same padded, uppercase address before and after expiry: the only change is
+    // expiry, so the 403 cannot come from a failed normalization.
+    const hookFor = async () => {
+      const [r] = await sql`
+        select public.hook_before_user_created(${sql.json({ user: { email: `  ${expired.toUpperCase()} ` } })}) as result`;
+      return r!.result;
+    };
+    expect(await hookFor()).toEqual({});
     await sql`update public.invites set expires_at = now() - interval '1 minute' where email = ${expired}`;
-    const [row] = await sql`
-      select public.hook_before_user_created(${sql.json({ user: { email: `  ${expired.toUpperCase()} ` } })}) as result`;
-    expect(row.result).toEqual({ error: { http_code: 403, message: 'Signups not allowed' } });
+    expect(await hookFor()).toEqual({ error: { http_code: 403, message: 'Signups not allowed' } });
   });
 
   test('clients cannot call the hook function', async () => {
@@ -118,7 +124,7 @@ describe('invite-only sign-up gate', () => {
     const user = await newUser();
     const anon = await anonClient().from('approved_emails' as never).select('*');
     const authed = await user.client.from('approved_emails' as never).select('*');
-    for (const r of [anon, authed]) expect(r.error ?? r.data).toBeTruthy();
+    for (const r of [anon, authed]) expect(r.error?.code).toBe('42501');
     expect(anon.data ?? []).toHaveLength(0);
     expect(authed.data ?? []).toHaveLength(0);
   });

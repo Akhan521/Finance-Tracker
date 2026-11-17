@@ -80,6 +80,83 @@ describe('profiles, households, memberships', () => {
     expect(own.error?.code).toBe('42501');
   });
 
+  test('a housemate can read my profile row but cannot edit it', async () => {
+    const a = await newUser();
+    const b = await newUser();
+    const h = await newHousehold(a);
+    await addMember(h, a, b);
+    const set = await a.client
+      .from('profiles')
+      .update({ display_name: 'Alice', time_zone: 'Asia/Tokyo', remind_personal: true })
+      .eq('id', a.id)
+      .select();
+    expect(set.error).toBeNull();
+    expect(set.data).toHaveLength(1);
+
+    // Pins D34: housemates can read each other's FULL profile row (time zone,
+    // reminder settings, retention), as the plan's data model specifies. The app
+    // only shows display names, but the row itself is readable.
+    const read = await b.client.from('profiles').select().eq('id', a.id);
+    expect(read.error).toBeNull();
+    expect(read.data).toHaveLength(1);
+    expect(read.data![0]).toMatchObject({
+      id: a.id,
+      display_name: 'Alice',
+      time_zone: 'Asia/Tokyo',
+      remind_personal: true,
+    });
+
+    // Because the row is visible, profiles_update is the only barrier to editing it.
+    for (const change of [
+      { display_name: 'Hacked' },
+      { time_zone: 'Pacific/Kiritimati' },
+      { remind_personal: false },
+    ]) {
+      const r = await b.client.from('profiles').update(change).eq('id', a.id).select();
+      expect(r.error).toBeNull();
+      expect(r.data).toEqual([]);
+    }
+    const [row] = await sql`
+      select display_name, time_zone, remind_personal from public.profiles where id = ${a.id}`;
+    expect(row).toEqual({ display_name: 'Alice', time_zone: 'Asia/Tokyo', remind_personal: true });
+  });
+
+  test('only an owner can change the household name or retention window', async () => {
+    const o = await newUser();
+    const m = await newUser();
+    const h = await newHousehold(o, 'Original');
+    await addMember(h, o, m);
+    const state = async () => {
+      const [r] = await sql`select name, retention_months from public.households where id = ${h}`;
+      return r;
+    };
+    const original = await state();
+    expect(original).toEqual({ name: 'Original', retention_months: 36 });
+
+    // The member can read the household (so the update policy is the barrier).
+    expect((await m.client.from('households').select().eq('id', h)).data).toHaveLength(1);
+    for (const change of [{ name: 'Renamed' }, { retention_months: 12 }, { name: 'x', retention_months: 120 }]) {
+      const r = await m.client.from('households').update(change).eq('id', h).select();
+      expect(r.error).toBeNull();
+      expect(r.data).toEqual([]);
+    }
+    expect(await state()).toEqual(original);
+
+    // Positive control: the owner can.
+    const ok = await o.client
+      .from('households')
+      .update({ name: 'Renamed', retention_months: 12 })
+      .eq('id', h)
+      .select();
+    expect(ok.error).toBeNull();
+    expect(ok.data).toHaveLength(1);
+    expect(await state()).toEqual({ name: 'Renamed', retention_months: 12 });
+
+    // time_zone is not grantable to anyone.
+    const tz = await o.client.from('households').update({ time_zone: 'UTC' }).eq('id', h);
+    expect(tz.error?.code).toBe('42501');
+  });
+
   test('the sole owner cannot leave (last_owner / household_needs_member)', async () => {
     // Sole member leaving would empty the household.
     const a = await newUser();
@@ -479,10 +556,22 @@ describe('invites, joining, roles, leaving, removal', () => {
     const m = await newUser();
     const h = await newHousehold(o);
     await addMember(h, o, m);
-    await o.client.from('memberships').update({ role: 'owner' }).eq('profile_id', m.id);
+    const promoted = await o.client
+      .from('memberships')
+      .update({ role: 'owner' })
+      .eq('household_id', h)
+      .eq('profile_id', m.id)
+      .select();
+    expect(promoted.error).toBeNull();
+    expect(promoted.data).toHaveLength(1);
+    const [mrole] = await sql`select role from public.memberships where profile_id = ${m.id}`;
+    expect(mrole!.role).toBe('owner');
     const taken = `${randomUUID()}@test.local`;
     await invite(o, h, taken);
-    await m.client.from('memberships').delete().eq('household_id', h).eq('profile_id', m.id);
+    const left = await m.client.from('memberships').delete().eq('household_id', h).eq('profile_id', m.id);
+    expect(left.error).toBeNull();
+    expect(await sql`select 1 from public.memberships where profile_id = ${m.id}`).toHaveLength(0);
+    expect(await sql`select 1 from public.memberships where household_id = ${h}`).toHaveLength(1);
     // m still knows the household id; re-inviting a pending address must not say so.
     const dup = await m.client.from('invites').insert({ household_id: h, email: taken });
     expect(dup.error?.code).toBe('42501');

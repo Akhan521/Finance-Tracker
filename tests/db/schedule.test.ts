@@ -304,6 +304,92 @@ describe('stored entries', () => {
     // Task 6 adds "and no payments" with a paid future entry that keeps its amount.
   });
 
+  // Entries due exactly on the scope's today (and the day before it). Run in
+  // two zones that straddle UTC (+14 and -11): between them, a trigger that
+  // used the UTC date, instead of the scope's, is wrong at every hour of the day.
+  describe.each(['Pacific/Kiritimati', 'Pacific/Pago_Pago'])('entries due on the scope today (%s)', (zone) => {
+    /** A household in `zone` with an entry due today and one due yesterday, both untouched. */
+    async function boundaryBill() {
+      const user = await newUser();
+      const household = await newHousehold(user);
+      await sql`update public.households set time_zone = ${zone} where id = ${household}`;
+      const [d] = await sql`
+        select public.scope_today(${household}::uuid, null)::text as today,
+               (public.scope_today(${household}::uuid, null) - 1)::text as yesterday,
+               ((now() at time zone ${zone})::date)::text as zone_today`;
+      const { today, yesterday } = d as { today: string; yesterday: string; zone_today: string };
+      expect(today).toBe((d as { zone_today: string }).zone_today);
+      const bill = await newBill(user, { scope: 'household', household, anchor: today, usualCents: 1980 });
+      // newBill cannot place a second entry on yesterday; do it as the database owner.
+      await sql`
+        insert into public.entries (bill_id, due_date, expected_cents)
+        values (${bill.id}, ${yesterday}::date, 1980)`;
+      const rows = await entriesOf(bill.id);
+      const onToday = rows.find((r) => r.due_date === today);
+      const onYesterday = rows.find((r) => r.due_date === yesterday);
+      expect(onToday).toBeDefined();
+      expect(onYesterday).toBeDefined();
+      return { user, bill, today, yesterday, todayId: onToday!.id, yesterdayId: onYesterday!.id };
+    }
+
+    test('a schedule change replaces the entry due today and leaves yesterday alone', async () => {
+      const { user, bill, today, todayId, yesterdayId } = await boundaryBill();
+      const upd = await user.client
+        .from('bills')
+        .update({ schedule: 'weeks', every_weeks: 2, anchor_date: addDays(today, 3) })
+        .eq('id', bill.id)
+        .select();
+      expect(upd.error).toBeNull();
+      expect(upd.data).toHaveLength(1);
+      const ids = new Set((await entriesOf(bill.id)).map((r) => r.id));
+      expect(ids.has(todayId)).toBe(false);
+      expect(ids.has(yesterdayId)).toBe(true);
+    });
+
+    test('archiving removes the entry due today and leaves yesterday alone', async () => {
+      const { user, bill, todayId, yesterdayId } = await boundaryBill();
+      const arch = await user.client
+        .from('bills')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', bill.id)
+        .select();
+      expect(arch.error).toBeNull();
+      expect(arch.data).toHaveLength(1);
+      const ids = (await entriesOf(bill.id)).map((r) => r.id);
+      expect(ids).not.toContain(todayId);
+      expect(ids).toEqual([yesterdayId]);
+    });
+
+    test('a new usual amount updates the entry due today and leaves yesterday alone', async () => {
+      const { user, bill, todayId, yesterdayId } = await boundaryBill();
+      const upd = await user.client.from('bills').update({ usual_cents: 2500 }).eq('id', bill.id).select();
+      expect(upd.error).toBeNull();
+      expect(upd.data).toHaveLength(1);
+      const rows = await entriesOf(bill.id);
+      expect(rows.find((r) => r.id === todayId)?.expected_cents).toBe(2500);
+      expect(rows.find((r) => r.id === yesterdayId)?.expected_cents).toBe(1980);
+    });
+  });
+
+  // The 12-month horizon uses the scope's today too. A UTC horizon is one day
+  // early in Kiritimati (drops the edge entry) and one day late in Pago Pago
+  // (includes an entry that is out of range), so together it fails at every hour.
+  test('the 12-month horizon is measured from the household\'s own today', async () => {
+    for (const [zone, offset, expected] of [
+      ['Pacific/Kiritimati', 0, 1],
+      ['Pacific/Pago_Pago', 1, 0],
+    ] as const) {
+      const owner = await newUser();
+      const hh = await newHousehold(owner);
+      await sql`update public.households set time_zone = ${zone} where id = ${hh}`;
+      const [d] = await sql`
+        select (public.scope_today(${hh}::uuid, null) + interval '12 months' + ${offset} * interval '1 day')::date::text as edge`;
+      const edge = (d as { edge: string }).edge;
+      const bill = await newBill(owner, { scope: 'household', household: hh, schedule: 'once', anchor: edge });
+      expect(await entriesOf(bill.id)).toHaveLength(expected);
+    }
+  });
+
   test('clients cannot insert or delete entries', async () => {
     const owner = await newUser();
     const stranger = await newUser();

@@ -43,6 +43,10 @@ describe('schedule helpers are locked down', () => {
     const household = await newHousehold(member);
     await sql`update public.households set time_zone = ${KIRI} where id = ${household}`;
     await sql`update public.profiles set time_zone = ${PAGO} where id = ${stranger.id}`;
+    // The member's own profile zone is Pago Pago too, so the household date (Kiritimati)
+    // differs from their own-zone fallback at every hour. A scope_today that ignored
+    // the household would return the Pago Pago date and fail.
+    await sql`update public.profiles set time_zone = ${PAGO} where id = ${member.id}`;
 
     const kiri = await dateIn(KIRI);
     const pago = await dateIn(PAGO);
@@ -51,6 +55,7 @@ describe('schedule helpers are locked down', () => {
     const asMember = await member.client.rpc('scope_today', { p_household: household, p_owner: member.id });
     expect(asMember.error).toBeNull();
     expect(asMember.data).toBe(kiri);
+    expect(asMember.data).not.toBe(pago);
 
     // Stranger cannot see the household, so falls back to the owner's zone (their own: Pago_Pago).
     const asStranger = await stranger.client.rpc('scope_today', { p_household: household, p_owner: stranger.id });

@@ -172,20 +172,26 @@ describe('deleting an account', () => {
 
   test('the blocker is null with no household, and for an owner when another owner exists', async () => {
     const lone = await newUser();
-    expect((await lone.client.rpc('account_deletion_blocker')).data).toBeNull();
+    const loneBlocker = await lone.client.rpc('account_deletion_blocker');
+    expect(loneBlocker.error).toBeNull();
+    expect(loneBlocker.data).toBeNull();
 
     const a = await newUser();
     const b = await newUser();
     const h = await newHousehold(a);
     await addMember(h, a, b);
-    expect((await b.client.rpc('account_deletion_blocker')).data).toBeNull();
+    const memberBlocker = await b.client.rpc('account_deletion_blocker');
+    expect(memberBlocker.error).toBeNull();
+    expect(memberBlocker.data).toBeNull();
     const promote = await a.client
       .from('memberships')
       .update({ role: 'owner' })
       .eq('household_id', h)
       .eq('profile_id', b.id);
     expect(promote.error).toBeNull();
-    expect((await a.client.rpc('account_deletion_blocker')).data).toBeNull();
+    const coOwnerBlocker = await a.client.rpc('account_deletion_blocker');
+    expect(coOwnerBlocker.error).toBeNull();
+    expect(coOwnerBlocker.data).toBeNull();
   });
 
   test('the database itself refuses to delete a last owner or sole member, whatever the caller', async () => {
@@ -206,6 +212,14 @@ describe('deleting an account', () => {
     const r = await admin.auth.admin.deleteUser(a.id);
     expect(r.error).not.toBeNull();
     expect(await snap(a, h)).toEqual(before);
+    // The admin API's message is generic, so name the cause with a direct delete:
+    // the deferred trigger raises at commit, and the whole transaction rolls back.
+    await expect(
+      sql.begin(async (tx) => {
+        await tx`delete from auth.users where id = ${a.id}`;
+      }),
+    ).rejects.toThrow('last_owner');
+    expect(await snap(a, h)).toEqual(before);
 
     const s = await newUser();
     const sh = await newHousehold(s);
@@ -213,6 +227,12 @@ describe('deleting an account', () => {
     expect(sBefore).toEqual({ user: true, profile: 1, memberships: 1, bills: 0 });
     const r2 = await admin.auth.admin.deleteUser(s.id);
     expect(r2.error).not.toBeNull();
+    expect(await snap(s, sh)).toEqual(sBefore);
+    await expect(
+      sql.begin(async (tx) => {
+        await tx`delete from auth.users where id = ${s.id}`;
+      }),
+    ).rejects.toThrow('household_needs_member');
     expect(await snap(s, sh)).toEqual(sBefore);
   });
 
@@ -276,6 +296,7 @@ describe('delete_household', () => {
     });
     const before = await counts();
     for (const [k, v] of Object.entries(before)) expect(v, `${k} before`).toBeGreaterThan(0);
+    const personalBefore = await count(sql`select count(*)::int n from public.history where owner_id = ${a.id}`);
 
     const r = await a.client.rpc('delete_household', { p_household: h });
     expect(r.error).toBeNull();
@@ -284,8 +305,12 @@ describe('delete_household', () => {
       households: 0, memberships: 0, categories: 0, bills: 0,
       entries: 0, payments: 0, invites: 0, history: 0,
     });
-    // No history event is written for the deletion itself, and the account lives on.
-    expect(await count(sql`select count(*)::int n from public.history where bill_id = ${bill.id}`)).toBe(0);
+    // The household had history before (checked above) and none after. No
+    // deletion event leaks into the deleter's personal scope either.
+    expect(before.history).toBeGreaterThan(0);
+    expect(await count(sql`select count(*)::int n from public.history where owner_id = ${a.id}`)).toBe(
+      personalBefore,
+    );
     expect(await userExists(a.id)).toBe(true);
   });
 

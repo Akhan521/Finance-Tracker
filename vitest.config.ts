@@ -16,6 +16,9 @@ export default defineConfig({
           include: ['tests/**/*.test.ts'],
           environment: 'node',
           fileParallelism: false,
+          // Auth-heavy setups and fixed sleeps need more than Vitest's 5 s default.
+          testTimeout: 30_000,
+          hookTimeout: 30_000,
           globalSetup: 'tests/helpers/env.ts',
         },
       },
