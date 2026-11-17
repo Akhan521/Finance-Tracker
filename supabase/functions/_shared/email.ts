@@ -1,4 +1,4 @@
-import nodemailer from 'npm:nodemailer@10'
+import nodemailer from 'npm:nodemailer@10.6.0'
 
 export type EmailMessage = { to: string; subject: string; text: string }
 
