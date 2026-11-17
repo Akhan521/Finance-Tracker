@@ -306,11 +306,17 @@ isOneToOne: false
             "accept_invite":
 { Args: { "p_invite": string }; Returns: string
                            },
+"account_deletion_blocker":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
 "can_access_bill":
 { Args: { "p_bill": string }; Returns: boolean
                            },
 "create_household":
 { Args: { "p_name": string,"p_time_zone": string }; Returns: string
+                           },
+"delete_household":
+{ Args: { "p_household": string }; Returns: undefined
                            },
 "due_dates":
 { Args: { "p_anchor": string,"p_every_weeks": number,"p_from": string,"p_schedule": string,"p_through": string }; Returns: string[]
