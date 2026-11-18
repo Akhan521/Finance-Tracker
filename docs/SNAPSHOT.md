@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-16 (end of session 14: Task 8 done, Task 9's sweep done, test suite audited; schema not yet pushed live)
+**Last updated:** 2026-11-17 (end of session 15: Phase 2 live in production; daily keep-alive running)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Building has started: Task 1, V1, V3, V5, Tasks 2–8, and Task 9's sweep are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Phase 2 is complete and live; the daily keep-alive is running. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -46,10 +46,10 @@ not money. Core needs:
   done. Phase 2 is under way: Tasks 2 (profiles, households, memberships),
   3 (invites, joining, roles), 4 (categories, bills), 5 (schedules,
   stored entries), 6 (payments, entry status), 7 (change history), and
-  8 (deleting households and accounts) are done, plus Task 9's
-  whole-schema sweep. Task 9's last step, the first push of the schema to
-  project A, is next. V4 (iPhone install) is deferred until Aamir has his
-  iPhone. Brainstorming followed the superpowers process: questions →
+  8 (deleting households and accounts), and 9 (the whole-schema sweep
+  and the first push to project A) are done: **Phase 2 is complete and
+  live.** The keep-alive part of Task 23 is live too. Next is Phase 3 (the
+  app). V4 (iPhone install) is deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -61,8 +61,9 @@ not money. Core needs:
   `docs/verify-early.md` (V1, V3, V5 results), `docs/operations.md`
   (accounts, secret names, the production settings checklist), the first
   migrations (`sign_up_gate`, `households`, `invites`, `bills`,
-  `entries`, `lock_schedule_helpers`, `payments`, `history`, `deletion`),
-  the `delete-account` Edge Function, generated DB types, and the
+  `entries`, `lock_schedule_helpers`, `payments`, `history`, `deletion`,
+  `health`), the `delete-account` Edge Function, the daily-health
+  workflow, generated DB types, and the
   db test helpers and security tests under `tests/`.
 - **Session 2:** the home screen was designed using browser mockups (the
   superpowers visual companion). The home screen direction is now settled
@@ -346,6 +347,42 @@ not money. Core needs:
     but not edit it. A test pins it.
   - **142 db tests pass.** Four commits, plus this snapshot. CI checks
     them on push.
+- **Session 15 (2026-11-17):**
+  - **The live project had paused**: idle for 10 days with no keep-alive
+    yet. Aamir restored it from the dashboard; no data was lost. This is
+    the "silent failure" risk in action, so the keep-alive was brought
+    forward from Task 23.
+  - **Task 9, Step 4 done:** `db push --linked` applied 8 migrations to
+    project A (the sign-up gate was already live). Aamir's SQL check
+    confirmed:
+    - no account has a password, and the blanking trigger exists,
+    - his profile and six categories exist,
+    - the approved list and hook function are intact,
+    - the hook is still ENABLED.
+  - **Keep-alive** (migration `health` plus `.github/workflows/daily-health.yml`):
+    - `job_runs`, with no client access,
+    - `health_check(p_token)`: anon-only, token from Vault, a uniform
+      `forbidden`, returns only timestamps and `ok`,
+    - a daily Action at 17:00 UTC that calls it, masks the output, prints
+      only field names and a status code on failure, and re-enables itself.
+    - The watchdog switch (`WATCHDOG_ENFORCE`) is off until Task 23.
+  - **Review (opus) found a Critical issue:** `job_runs` was fully open to
+    `authenticated`. Postgres's default table and sequence grants for
+    authenticated had never been closed; only anon had. TRUNCATE bypasses
+    RLS. It was fixed before going live, along with the leftover
+    `history_id_seq` grant (live since that morning's push).
+    - Authenticated's defaults are now closed.
+    - The sweep now catches signed-in access to policy-less tables and
+      sequences, plus risky privileges (TRUNCATE, REFERENCES, TRIGGER,
+      MAINTAIN) anywhere.
+  - **Production setup:**
+    - Aamir created the token on his Mac and stored it in Vault and as the
+      `HEALTH_TOKEN` repo secret. It never passed through Claude.
+    - Claude set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` as repo
+      secrets, piped in without being printed.
+    - The first manual run was green (`ok: false`, as expected with no
+      jobs yet), and its public log contains no identifiers.
+  - **163 db tests pass.** One commit, plus this snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -615,6 +652,28 @@ and the invite details.
 - **A full local test run sends 7 Auth emails** (the limit is 10 an hour).
   A second full run within the hour needs a stack restart.
 
+**New calls from session 15 (not yet reviewed by Aamir):**
+- **The keep-alive came before Phase 3** (Aamir agreed). It runs daily
+  (Aamir's choice) at 17:00 UTC.
+- **`job_runs` is created in migration `health`.** Task 21 must not
+  recreate it; `docs/plan.md` still lists it under Task 21.
+- **Authenticated's default privileges on tables and sequences are
+  closed.** New tables and sequences start closed to everyone, and every
+  grant must be explicit.
+- **The anon allow-list is the exact signature `health_check(text)`.**
+- **The health token lives in Vault, Apple Passwords, and the repo
+  secret.** Create and rotate it in the dashboard's Vault UI; the SQL
+  editor would keep it in its history.
+- **For Task 23:**
+  - set `WATCHDOG_ENFORCE: 'true'`,
+  - add `backup.yml` to the re-enable step (Task 24),
+  - note that a reminder run that *never writes a row* is caught a day
+    late (25 h old at check time, under the 26 h threshold), while a
+    failed run is caught at once.
+- **Deferred:** `supabase_admin` default ACLs in public still grant
+  everything to clients. They're harmless while every migration runs as
+  postgres.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -649,16 +708,12 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 9, Step 4: the first push of the schema to project A** (needs
-   Aamir's OK; it changes the live database). Run `npx supabase db push
-   --linked` (10 migrations). Then check that:
-   - the `auth_users_blank_password` trigger exists, and no account has a
-     password,
-   - Aamir's account has a profile and the six default categories,
-   - the hook is still enabled.
-2. **Then Phase 3: the app** (Task 10 onward). The pure logic (Task 10) is
-   local; the screens (Tasks 11+) are shown at iPhone size in the browser
-   before each commit.
+1. **Phase 3: the app.** Task 10 is pure logic: money parsing,
+   calendar, totals, the donut, CSV. It's local, unit-tested, with no
+   screens. Tasks 11+ are the screens, each shown at iPhone size in the
+   browser before its commit.
+2. **Watch the daily health Action.** A failure email from GitHub means
+   look right away.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
    free Cloudflare account. The app is deployed once, added to the home
    screen, and a sign-in code is used inside it.
