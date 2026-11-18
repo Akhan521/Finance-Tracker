@@ -78,7 +78,7 @@ const anonTablePrivs = async (q: Q) => {
   const rows = await q`
     select c.relname as rel, p.priv, 'table' as lvl
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-      cross join unnest(array['select','insert','update','delete','truncate','references','trigger']) as p(priv)
+      cross join unnest(array['select','insert','update','delete','truncate','references','trigger','maintain']) as p(priv)
      where n.nspname = 'public' and c.relkind in ('r','v','m','p')
        and has_table_privilege('anon', c.oid, p.priv)
     union all
@@ -90,19 +90,21 @@ const anonTablePrivs = async (q: Q) => {
   return rows.map((r) => `${r.rel}:${r.priv}${r.lvl === 'column' ? ':column' : ''}`).sort();
 };
 
-const anonSequencePrivs = async (q: Q) => {
+const sequencePrivs = async (q: Q, role: string) => {
   const rows = await q`
     select c.relname as rel, p.priv
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
       cross join unnest(array['usage','select','update']) as p(priv)
-     where n.nspname = 'public' and c.relkind = 'S' and has_sequence_privilege('anon', c.oid, p.priv)`;
+     where n.nspname = 'public' and c.relkind = 'S' and has_sequence_privilege(${role}, c.oid, p.priv)`;
   return rows.map((r) => `${r.rel}:${r.priv}`).sort();
 };
+const anonSequencePrivs = (q: Q) => sequencePrivs(q, 'anon');
+const authenticatedSequencePrivs = (q: Q) => sequencePrivs(q, 'authenticated');
 
 // Default privileges that would hand anon future objects: any pg_default_acl
 // entry for public (or global) where anon is a grantee, for roles that create
 // objects in public (postgres plus every current owner there).
-const anonDefaultAcls = async (q: Q) =>
+const defaultAclsFor = async (q: Q, role: string) =>
   names(await q`
     with owners as (
       select 'postgres'::name as r
@@ -114,7 +116,9 @@ const anonDefaultAcls = async (q: Q) =>
      where (d.defaclnamespace = 0 or d.defaclnamespace = 'public'::regnamespace)
        and pg_get_userbyid(d.defaclrole) in (select r from owners)
        and exists (select 1 from aclexplode(d.defaclacl) a
-                   where a.grantee = (select oid from pg_roles where rolname = 'anon'))`);
+                   where a.grantee = (select oid from pg_roles where rolname = ${role}))`);
+const anonDefaultAcls = (q: Q) => defaultAclsFor(q, 'anon');
+const authenticatedDefaultAcls = (q: Q) => defaultAclsFor(q, 'authenticated');
 
 // Exact signatures as printed by regprocedure. A new overload fails the test.
 const AUTHENTICATED_FUNCTIONS = [
@@ -123,9 +127,8 @@ const AUTHENTICATED_FUNCTIONS = [
   'delete_household(uuid)', 'account_deletion_blocker()', 'scope_today(uuid,uuid)',
   'status_rule(boolean,bigint,bigint,date,date)',
 ];
-// Task 23 adds health_check(p_token text): its signature goes here then.
-const ANON_FUNCTIONS: string[] = [];
-const ANON_FUNCTION_NAMES = ['health_check'];
+// Exact signatures, like the authenticated list: a new overload fails the test.
+const ANON_FUNCTIONS = ['health_check(text)'];
 
 function diff(actual: string[], allowed: string[]) {
   return {
@@ -134,12 +137,57 @@ function diff(actual: string[], allowed: string[]) {
   };
 }
 
-// anon may run health_check only (any signature Task 23 gives it), nothing else.
+// anon may run health_check(text) only, nothing else.
 function anonDiff(actual: string[]) {
   return {
-    extra: actual.filter((x) => !ANON_FUNCTION_NAMES.includes(x.replace(/\(.*$/, '')) && !ANON_FUNCTIONS.includes(x)),
+    extra: actual.filter((x) => !ANON_FUNCTIONS.includes(x)),
+    missing: ANON_FUNCTIONS.filter((x) => !actual.includes(x)),
   };
 }
+
+// Privilege types that bypass or sidestep RLS, or are never needed by clients.
+const RISKY = ['truncate', 'references', 'trigger', 'maintain'];
+const riskyPrivs = async (q: Q) => {
+  const rows = await q`
+    select r.role, c.relname as rel, p.priv
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      cross join (values ('anon'), ('authenticated')) as r(role)
+      cross join unnest(${RISKY}::text[]) as p(priv)
+     where n.nspname = 'public' and c.relkind in ('r','v','m','p','S')
+       and has_table_privilege(r.role, c.oid, p.priv)
+    union all
+    select r.role, c.relname, 'references:column'
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      cross join (values ('anon'), ('authenticated')) as r(role)
+     where n.nspname = 'public' and c.relkind in ('r','v','m','p')
+       and has_any_column_privilege(r.role, c.oid, 'references')`;
+  return rows.map((r) => `${r.role}:${r.rel}:${r.priv}`).sort();
+};
+
+// Tables with no RLS policy at all: authenticated must hold no privilege on them.
+const ALL_TABLE_PRIVS = ['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger', 'maintain'];
+const policylessTables = async (q: Q) =>
+  names(await q`
+    select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind in ('r','p')
+       and not exists (select 1 from pg_policy p where p.polrelid = c.oid)`);
+const policylessGrants = async (q: Q) => {
+  const rows = await q`
+    select c.relname as rel, p.priv, 'table' as lvl
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      cross join unnest(${ALL_TABLE_PRIVS}::text[]) as p(priv)
+     where n.nspname = 'public' and c.relkind in ('r','p')
+       and not exists (select 1 from pg_policy x where x.polrelid = c.oid)
+       and has_table_privilege('authenticated', c.oid, p.priv)
+    union all
+    select c.relname, p.priv, 'column'
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      cross join unnest(array['select','insert','update','references']) as p(priv)
+     where n.nspname = 'public' and c.relkind in ('r','p')
+       and not exists (select 1 from pg_policy x where x.polrelid = c.oid)
+       and has_any_column_privilege('authenticated', c.oid, p.priv)`;
+  return rows.map((r) => `${r.rel}:${r.priv}:${r.lvl}`).sort();
+};
 
 describe('whole-schema security sweep (public)', () => {
   test('every table in public has row-level security enabled', async () => {
@@ -201,7 +249,16 @@ describe('whole-schema security sweep (public)', () => {
 
   test('anon can execute only health_check in public', async () => {
     const d = anonDiff(await fnsExecutableBy(sql, 'anon'));
-    expect(d.extra, `anon can execute unexpected functions: ${d.extra.join(', ')}`).toEqual([]);
+    expect(d, `anon function drift: ${JSON.stringify(d)}`).toEqual({ extra: [], missing: [] });
+  });
+
+  test('the anon check bites on a new overload of health_check', async () => {
+    const found = await inThrowaway(async (tx) => {
+      await tx`create function public.health_check(int) returns int language sql as 'select 1'`;
+      await tx`grant execute on function public.health_check(int) to anon`;
+      return fnsExecutableBy(tx, 'anon');
+    });
+    expect(anonDiff(found).extra).toEqual(['health_check(integer)']);
   });
 
   test('the anon function check bites: a function granted to anon is flagged', async () => {
@@ -277,6 +334,19 @@ describe('whole-schema security sweep (public)', () => {
     expect(found).toEqual(['zz_seq:usage']);
   });
 
+  test('authenticated has no privilege on any sequence in public', async () => {
+    expect(await authenticatedSequencePrivs(sql)).toEqual([]);
+  });
+
+  test('the authenticated sequence check bites', async () => {
+    const found = await inThrowaway(async (tx) => {
+      await tx`create sequence public.zz_aseq`;
+      await tx`grant usage, update on sequence public.zz_aseq to authenticated`;
+      return authenticatedSequencePrivs(tx);
+    });
+    expect(found).toEqual(['zz_aseq:update', 'zz_aseq:usage']);
+  });
+
   test('every security definer function in public is owned by postgres', async () => {
     expect(await definersNotOwnedByPostgres(sql)).toEqual([]);
   });
@@ -305,6 +375,63 @@ describe('whole-schema security sweep (public)', () => {
       return anonDefaultAcls(tx);
     });
     expect(flagged).toEqual(['postgres:S', 'postgres:f', 'postgres:r']);
+  });
+
+  test('default privileges in public grant authenticated nothing on future objects', async () => {
+    expect(await authenticatedDefaultAcls(sql)).toEqual([]);
+  });
+
+  test('the authenticated default-privileges check bites', async () => {
+    const flagged = await inThrowaway(async (tx) => {
+      await tx`alter default privileges for role postgres in schema public grant select on tables to authenticated`;
+      await tx`alter default privileges for role postgres in schema public grant usage on sequences to authenticated`;
+      return authenticatedDefaultAcls(tx);
+    });
+    expect(flagged).toEqual(['postgres:S', 'postgres:r']);
+  });
+
+  test('no relation in public grants TRUNCATE, REFERENCES or TRIGGER to anon or authenticated', async () => {
+    expect(await riskyPrivs(sql)).toEqual([]);
+  });
+
+  test('the risky-privilege check bites on table, view and column grants', async () => {
+    const found = await inThrowaway(async (tx) => {
+      await tx`create table public.zz_risky (id int)`;
+      await tx`grant truncate, trigger on public.zz_risky to authenticated`;
+      await tx`grant references (id) on public.zz_risky to anon`;
+      await tx`create view public.zz_risky_v with (security_invoker = on) as select 1 as x`;
+      await tx`grant references on public.zz_risky_v to anon`;
+      return riskyPrivs(tx);
+    });
+    expect(found).toEqual([
+      'anon:zz_risky:references:column',
+      'anon:zz_risky_v:references',
+      'anon:zz_risky_v:references:column',
+      'authenticated:zz_risky:trigger',
+      'authenticated:zz_risky:truncate',
+    ].sort());
+  });
+
+  test('every public table with no RLS policy grants authenticated nothing at all', async () => {
+    const tables = await policylessTables(sql);
+    // Not vacuous: the known policy-less tables are found.
+    expect(tables).toEqual(expect.arrayContaining(['approved_emails', 'job_runs']));
+    expect(await policylessGrants(sql)).toEqual([]);
+  });
+
+  test('the policy-less check bites on table and column grants, and ignores tables with a policy', async () => {
+    const found = await inThrowaway(async (tx) => {
+      await tx`create table public.zz_nopol (id int, v int)`;
+      await tx`alter table public.zz_nopol enable row level security`;
+      await tx`grant truncate on public.zz_nopol to authenticated`;
+      await tx`grant update (v) on public.zz_nopol to authenticated`;
+      await tx`create table public.zz_withpol (id int)`;
+      await tx`alter table public.zz_withpol enable row level security`;
+      await tx`create policy p on public.zz_withpol for select using (true)`;
+      await tx`grant select on public.zz_withpol to authenticated`;
+      return policylessGrants(tx);
+    });
+    expect(found).toEqual(['zz_nopol:truncate:table', 'zz_nopol:update:column']);
   });
 
   test('signed out, the API returns nothing from any table or view', async () => {

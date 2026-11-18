@@ -193,6 +193,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"job_runs": {
+                  Row: {
+                    "detail": string | null,"finished_at": string | null,"id": number,"job": string,"ok": boolean | null,"started_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "detail"?: string | null,"finished_at"?: string | null,"id"?: never,"job": string,"ok"?: boolean | null,"started_at"?: string
+                  }
+                  Update: {
+                    "detail"?: string | null,"finished_at"?: string | null,"id"?: never,"job"?: string,"ok"?: boolean | null,"started_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"memberships": {
                   Row: {
                     "household_id": string,"joined_at": string,"profile_id": string,"role": string
@@ -326,6 +340,9 @@ isOneToOne: false
                            },
 "generate_entries":
 { Args: { "p_bill": string,"p_from": string }; Returns: undefined
+                           },
+"health_check":
+{ Args: { "p_token": string }; Returns: Json
                            },
 "history_actor":
 { Args: Record<PropertyKey, never>; Returns: string

@@ -25,6 +25,8 @@ Names and where they live. Never the values.
 | `SMTP_PASS` | Supabase Edge Function secrets; Apple Passwords | `_shared/email.ts` (the Gmail app password) |
 | `MAIL_FROM_NAME` | Supabase Edge Function secrets | `_shared/email.ts` (`Bills`) |
 | Auth SMTP password | Supabase dashboard (Auth → SMTP) | Sign-in code emails (same app password) |
+| `health_token` | Supabase Vault (project A); Apple Passwords | `public.health_check`, the daily health workflow |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `HEALTH_TOKEN` | GitHub repo secrets | `.github/workflows/daily-health.yml` (`HEALTH_TOKEN` equals the Vault `health_token`) |
 
 Set function secrets with `npx supabase secrets set --env-file <file outside
 the repo>`, then delete the file. If the app password might be exposed,
@@ -68,9 +70,60 @@ of these by hand in the dashboard (verified 2026-11-05 unless noted).
 - [x] Before User Created: enabled, Postgres, `public.hook_before_user_created`
   (from migration `sign_up_gate`; applied with `npx supabase db push --linked`)
 
+**Database → Vault and tables**
+- [ ] Vault secret `health_token` exists (see "Keep-alive and health").
+- [ ] Migration `health` applied: `public.job_runs` records each reminder and
+  maintenance run, and the daily health workflow reads it through
+  `health_check`.
+
 **The approved list.** Emails that may sign up without an invite live in
 `public.approved_emails`. Manage them in the SQL editor, always lowercase:
 `insert into public.approved_emails (email) values ('<email>');`. No client
 can read or change this table.
+
+## Keep-alive and health
+
+**What runs.** `.github/workflows/daily-health.yml` runs every day at 17:00
+UTC (about an hour after the 8 a.m. PST reminder run, D29). It POSTs to the
+database function `public.health_check`, which counts as activity, so the free
+Supabase project does not pause after 7 idle days (D27, D31). The function
+returns only `ok`, `last_reminders_ok_at`, `last_maintenance_ok_at` and
+`failures_24h`. Its table, `public.job_runs`, is where the reminder and
+maintenance jobs record each run (Task 21 writes to it); no client can read it.
+
+**Repo secrets it needs** (Settings → Secrets and variables → Actions):
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `HEALTH_TOKEN`. No secret API key
+is ever given to GitHub Actions.
+
+**Create the token without it passing through anyone.** Generate it on your
+own machine, store it in Apple Passwords, and paste it straight into the two
+places that need it:
+1. `openssl rand -hex 32` in a terminal (copy it; do not paste it into chat).
+2. Preferred: Supabase dashboard → Integrations → Vault → Add secret, name
+   `health_token`, value the token. This keeps it out of SQL editor history.
+   Alternative: in the SQL editor, `select vault.create_secret('<token>', 'health_token');`
+   (it stays in the editor's history; delete that entry afterward). To rotate,
+   edit the secret in the Vault UI or use
+   `select vault.update_secret(id, '<new token>') from vault.secrets where name = 'health_token';`,
+   then update the GitHub secret to match.
+3. GitHub: `gh secret set HEALTH_TOKEN` (it prompts; paste the same token), or
+   the repo settings page.
+
+**Run it by hand.** Actions tab → "daily health" → Run workflow
+(`workflow_dispatch`), or `gh workflow run daily-health.yml`. Green means the
+request succeeded and the token matched.
+
+**The watchdog is off until Task 23.** The workflow's `WATCHDOG_ENFORCE` is
+`'false'`: it keeps the project awake and fails on an HTTP error or a wrong
+token, but it does not fail when `ok` is false, because no reminder or
+maintenance runs exist yet. Task 23 flips it to `'true'`.
+
+**Warnings.**
+- If GitHub emails that a workflow will be disabled, re-enable it by hand. A
+  workflow re-enabled by the bot may send its failure emails to the bot
+  instead of Aamir.
+- Changing the Gmail password cancels its app passwords. Create a new one and
+  update Supabase's SMTP setting and the function secrets right away, or
+  sign-in codes, invites, and reminders stop.
 
 ## Restore

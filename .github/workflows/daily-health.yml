@@ -1,0 +1,70 @@
+name: daily health
+
+# Keep-alive and watchdog (D27). The request to health_check counts as activity
+# on the free Supabase plan. Runs about an hour after the 8 a.m. PST reminder run (D29).
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Task 23 flips this to 'true' once reminders exist (Tasks 21-23). While
+      # 'false', the job is only a keep-alive: it still fails on HTTP errors
+      # and on forbidden, but not on ok = false.
+      WATCHDOG_ENFORCE: 'false'
+    steps:
+      - name: Call health_check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          HEALTH_TOKEN: ${{ secrets.HEALTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # jq reads the token from its environment, so it is never in argv.
+          body="$(jq -n '{p_token: env.HEALTH_TOKEN}')"
+          resp="$(mktemp)"
+          # The body goes in on stdin so the token never appears in curl's argv.
+          # Only the status code (not secret) is captured; the body and URL are never printed.
+          code="$(printf '%s' "$body" | curl --fail-with-body -sS --max-time 30 -X POST \
+              "$SUPABASE_URL/rest/v1/rpc/health_check" \
+              -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+              -H "content-type: application/json" \
+              --data-binary @- -o "$resp" -w '%{http_code}' 2>/dev/null)" || {
+            echo "::error::health_check request failed (HTTP status ${code:-none}; wrong token, HTTP error or timeout)"
+            rm -f "$resp"
+            exit 1
+          }
+          # Mask the response before any output.
+          echo "::add-mask::$(jq -c . "$resp")"
+          ok="$(jq -r '.ok' "$resp")"
+          echo "ok: $ok"
+          echo "last_reminders_ok_at: $(jq -r '.last_reminders_ok_at' "$resp")"
+          echo "last_maintenance_ok_at: $(jq -r '.last_maintenance_ok_at' "$resp")"
+          echo "failures_24h: $(jq -r '.failures_24h' "$resp")"
+          rm -f "$resp"
+          if [ "$WATCHDOG_ENFORCE" = 'true' ]; then
+            if [ "$ok" != 'true' ]; then
+              echo "::error::watchdog: the daily jobs are not healthy"
+              exit 1
+            fi
+          else
+            echo "::notice::watchdog is off until reminders exist (Task 23 switches it on)"
+          fi
+
+      # Against GitHub's 60-day inactivity rule (D27): re-enable this workflow
+      # on every run, even after a failure.
+      # Task 24 adds `gh workflow enable backup.yml` here once backup.yml exists.
+      - name: Re-enable this workflow
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow enable daily-health.yml
