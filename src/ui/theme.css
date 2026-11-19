@@ -1,12 +1,15 @@
-/* First tokens. Task 11 adds the full set and a contrast test.
-   Text on --cream: --ink ~10:1, --muted ~5:1. */
+/* Design tokens. src/ui/theme.test.ts reads this file and checks contrast:
+   text (--ink, --muted) on every fill must reach 4.5:1. Keep hex values as
+   six-digit literals so the test can parse them. */
 :root {
   --cream: #fbf6ec;
   --surface: #fffdf8;
-  --line: #eadfcb; /* decorative card edge */
+  --line: #eadfcb; /* decorative card edge and row dividers */
   --field-border: #8a8378; /* input boundary, >= 3:1 on --cream */
   --ink: #3d3a35;
   --muted: #6b655b;
+  --link: #4a5f9e;
+  --focus: #4a5f9e;
 
   /* Status: sage = paid, rose = overdue, butter = upcoming. Use --ink text on the fills. */
   --sage: #a8d5ba;
@@ -16,7 +19,23 @@
   --butter: #f3dc9a;
   --butter-pale: #fbf1d2;
 
-  --focus: #4a5f9e;
+  /* Category pastels, the same values as the seeded categories. */
+  --cat-housing: #f7d9c4;
+  --cat-car: #cfe3f7;
+  --cat-utilities: #fbefb5;
+  --cat-insurance: #d9d2f0;
+  --cat-credit-card: #f5cbd6;
+  --cat-internet-phone: #cdebdd;
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
 
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
 }
@@ -36,6 +55,10 @@ body {
 
 #root {
   min-height: 100svh;
+}
+
+a {
+  color: var(--link);
 }
 
 :focus-visible {

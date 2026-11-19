@@ -1,0 +1,70 @@
+.namestep {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+}
+
+.namestep h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  text-align: center;
+}
+
+.namestep-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.namestep-hint {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.namestep label {
+  font-weight: 600;
+}
+
+.namestep input {
+  font: inherit;
+  font-size: 18px;
+  color: var(--ink);
+  background: var(--cream);
+  border: 1px solid var(--field-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.namestep button {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--ink);
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.namestep button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.namestep-message {
+  margin: 0;
+  min-height: 1.45em;
+  color: var(--muted);
+}
