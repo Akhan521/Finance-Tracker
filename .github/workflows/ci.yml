@@ -20,8 +20,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Match key values, not the bare prefix: supabase-js itself contains
+      # the string `sb_secret_` (it refuses secret keys in the browser).
       - name: Check the bundle for secrets
-        run: "! grep -rE 'sb_secret_|service_role|SMTP_|GMAIL' dist"
+        run: "! grep -rE 'sb_secret_[A-Za-z0-9_-]{16,}|service_role|SMTP_|GMAIL' dist"
       - run: npx supabase start -x studio,imgproxy,vector,logflare
       - run: cp supabase/functions/.env.example supabase/functions/.env
       - run: npx supabase db reset
