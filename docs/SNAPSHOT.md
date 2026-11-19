@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-17 (end of session 15: Phase 2 live in production; daily keep-alive running)
+**Last updated:** 2026-11-18 (end of session 16: Phase 3 started; Task 10 logic, sign-in, and the app shell done)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Phase 2 is complete and live; the daily keep-alive is running. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) has started: Task 10, V4's local sign-in, and Task 11 are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -48,8 +48,10 @@ not money. Core needs:
   stored entries), 6 (payments, entry status), 7 (change history), and
   8 (deleting households and accounts), and 9 (the whole-schema sweep
   and the first push to project A) are done: **Phase 2 is complete and
-  live.** The keep-alive part of Task 23 is live too. Next is Phase 3 (the
-  app). V4 (iPhone install) is deferred until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
+  live.** The keep-alive part of Task 23 is live too. **Phase 3 has
+  started:** Task 10 (pure logic), V4's local half (code sign-in), and
+  Task 11 (app shell, theme, first run) are done. V4's iPhone half (PWA,
+  deploy, home-screen check) waits until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
   file), `docs/design.md` (approved design), `docs/plan.md` (implementation
@@ -383,6 +385,41 @@ not money. Core needs:
     - The first manual run was green (`ok: false`, as expected with no
       jobs yet), and its public log contains no identifiers.
   - **163 db tests pass.** One commit, plus this snapshot.
+- **Session 16 (2026-11-18):**
+  - **The daily health Action's first scheduled run was green.** GitHub
+    started it about 6 hours after its 17:00 UTC slot, which is normal and
+    is why it runs daily.
+  - **Task 10** (`src/lib/money.ts`, `calendar.ts`, `totals.ts`, `csv.ts`;
+    60 unit tests):
+    - money parsing with integer math only,
+    - `$1,980` / `$1,980.50`,
+    - time-zone-proof month grids,
+    - day status,
+    - totals where owed is `max(target − paid, 0)`,
+    - donut slices whose center always equals totals overdue + left,
+    - CSV with every cell quoted and formulas neutralized.
+  - **V4's local half: code sign-in** (`src/lib/supabase.ts`,
+    `src/auth/useSession.ts`, `SignIn.tsx`):
+    - the email is trimmed and lowercased,
+    - the neutral message shows in every case, including 429 (review
+      reversed my distinct wait message),
+    - digits only, and pasted codes are cleaned (review caught that
+      `123 456` broke),
+    - a 60 s resend lock.
+  - **Task 11: the app shell:**
+    - router and gate: sign-in → name step → "Join <household>?" → app,
+    - calm loading and error states with Try again,
+    - the query cache is cleared on every sign-out, with no cross-user
+      flash,
+    - `errors.ts` covers every key the migrations raise (derived in the
+      test),
+    - the full theme, with a contrast test bound to `theme.css`,
+    - UI primitives,
+    - first-run Home.
+  - **Every screen was shown to Aamir at iPhone width** (390 px, in the
+    browser against the local stack) before its commit, and approved.
+  - **143 unit tests and 163 db tests pass.** Three commits, plus this
+    snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -674,6 +711,32 @@ and the invite details.
   everything to clients. They're harmless while every migration runs as
   postgres.
 
+**New calls from session 16 (not yet reviewed by Aamir):**
+- **V4's local half (sign-in) was built now,** because Task 11 needs it.
+  PWA, deploy, and the iPhone check stay with V4.
+- **Sign-in shows the same neutral message for a 429.** The app's own
+  60 s lock covers the wait.
+- **Accepted residual risk:** a direct API caller (not the app) might tell
+  which emails have access by requesting two codes in a minute. Supabase's
+  per-email 60 s limit may only apply to emails that got a code. This is a
+  server-side property; D32's Turnstile is the fallback if abuse appears.
+- **The donut's "left" includes overdue,** so center left = overdue + left
+  from the totals.
+- **CSV:** CRLF line endings, every field quoted, no BOM (add one in
+  Task 17 if Excel garbles names). Task 17 must never pass a negative
+  amount string.
+- **The field border is darkened to #8a8378** (3.48:1, WCAG non-text).
+- **The invite banner's "Not now"** hides it for the browser session,
+  per user.
+- **Home has a temporary Sign out** until Settings (Task 17).
+- **Category colors still match the seeded hexes,** which sit near the
+  status colors. Show Aamir palette options when the calendar and donut
+  appear (Tasks 12 and 16).
+- **For Task 13:** add a Tab focus trap to `Sheet` (`aria-modal`), and a
+  persistent live region for `OfflineBanner`.
+- **For Task 19:** map `FunctionsFetchError` (a gateway 401) to "sign in
+  again". `could_not_delete` already has copy.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -708,10 +771,11 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Phase 3: the app.** Task 10 is pure logic: money parsing,
-   calendar, totals, the donut, CSV. It's local, unit-tested, with no
-   screens. Tasks 11+ are the screens, each shown at iPhone size in the
-   browser before its commit.
+1. **Task 12: the home calendar view**, the month grid colored by
+   status, plus the totals. Show Aamir the screen, and category palette
+   options, at iPhone size before committing. Then Tasks 13–19 (pay
+   sheet, new bill, edit bill, donut, settings, household, delete
+   account).
 2. **Watch the daily health Action.** A failure email from GitHub means
    look right away.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
