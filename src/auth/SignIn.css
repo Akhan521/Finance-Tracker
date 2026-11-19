@@ -1,0 +1,89 @@
+.signin {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+}
+
+.signin h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.signin-hint {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.signin label {
+  font-weight: 600;
+}
+
+.signin input {
+  font: inherit;
+  font-size: 18px; /* 16px+ stops iOS zooming on focus */
+  color: var(--ink);
+  background: var(--cream);
+  border: 1px solid var(--field-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.signin input[inputmode='numeric'] {
+  letter-spacing: 6px;
+  text-align: center;
+}
+
+.signin button {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--ink);
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.signin button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.signin button.signin-link {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+.signin button.signin-link:disabled {
+  color: var(--muted);
+  opacity: 1;
+  text-decoration: none;
+}
+
+.signin-message {
+  margin: 0;
+  min-height: 1.45em;
+  max-width: 340px;
+  text-align: center;
+  color: var(--muted);
+}

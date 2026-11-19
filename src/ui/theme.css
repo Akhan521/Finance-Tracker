@@ -1,0 +1,44 @@
+/* First tokens. Task 11 adds the full set and a contrast test.
+   Text on --cream: --ink ~10:1, --muted ~5:1. */
+:root {
+  --cream: #fbf6ec;
+  --surface: #fffdf8;
+  --line: #eadfcb; /* decorative card edge */
+  --field-border: #8a8378; /* input boundary, >= 3:1 on --cream */
+  --ink: #3d3a35;
+  --muted: #6b655b;
+
+  /* Status: sage = paid, rose = overdue, butter = upcoming. Use --ink text on the fills. */
+  --sage: #a8d5ba;
+  --sage-pale: #e4f2ea;
+  --rose: #f0b8b8;
+  --rose-pale: #fae6e6;
+  --butter: #f3dc9a;
+  --butter-pale: #fbf1d2;
+
+  --focus: #4a5f9e;
+
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font: 16px/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
