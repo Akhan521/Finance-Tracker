@@ -319,3 +319,76 @@ export function useUpdateBill(userId: string) {
       ]),
   });
 }
+
+export type CategoryRow = { id: string; name: string; color: string; is_credit_card: boolean };
+
+// The categories of one scope: the household's shared ones, or the person's own.
+export function useCategories(userId: string, scope: View) {
+  const householdId = householdIdOf(useMyHousehold(userId).data);
+  return useQuery({
+    queryKey: ['categories', userId, scope, scope === 'household' ? householdId : null],
+    enabled: scope === 'mine' || !!householdId,
+    queryFn: async (): Promise<CategoryRow[]> => {
+      let q = supabase.from('categories').select('id, name, color, is_credit_card');
+      q = scope === 'household' ? q.eq('household_id', householdId ?? '') : q.eq('owner_id', userId);
+      const { data, error } = await q.order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Inserts only the granted columns. The new row is returned so it can be selected.
+// Exactly one of household_id and owner_id is ever set.
+export function useCreateCategory(userId: string) {
+  const qc = useQueryClient();
+  const householdId = householdIdOf(useMyHousehold(userId).data);
+  return useMutation({
+    mutationFn: async (v: { name: string; color: string; scope: View }): Promise<CategoryRow> => {
+      if (v.scope === 'household' && !householdId) throw new Error('forbidden');
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          household_id: v.scope === 'household' ? householdId : null,
+          owner_id: v.scope === 'mine' ? userId : null,
+          name: v.name,
+          color: v.color,
+        })
+        .select('id, name, color, is_credit_card')
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
+// Exactly the columns a client may insert (never the card flag or archived_at).
+export type NewBillInput = {
+  household_id: string | null;
+  owner_id: string | null;
+  category_id: string;
+  name: string;
+  usual_cents: number;
+  schedule: 'monthly' | 'weeks' | 'yearly' | 'once';
+  every_weeks: number | null;
+  anchor_date: string;
+  nickname: string | null;
+  last4: string | null;
+  pay_url: string | null;
+};
+
+export function useCreateBill(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewBillInput) => {
+      const { error } = await supabase.from('bills').insert(input);
+      if (error) throw error;
+    },
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['entries', userId] }),
+        qc.invalidateQueries({ queryKey: ['has-bills', userId] }),
+      ]),
+  });
+}
