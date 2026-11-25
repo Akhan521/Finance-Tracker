@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-18 (end of session 16: Phase 3 started; Task 10 logic, sign-in, and the app shell done)
+**Last updated:** 2026-11-24 (end of session 17: the home calendar, the day list and pay sheet, and the new bill page done)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) has started: Task 10, V4's local sign-in, and Task 11 are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is under way: Tasks 10 to 14 and V4's local sign-in are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -50,7 +50,9 @@ not money. Core needs:
   and the first push to project A) are done: **Phase 2 is complete and
   live.** The keep-alive part of Task 23 is live too. **Phase 3 has
   started:** Task 10 (pure logic), V4's local half (code sign-in), and
-  Task 11 (app shell, theme, first run) are done. V4's iPhone half (PWA,
+  Task 11 (app shell, theme, first run) are done, and so are Tasks 12
+  (home calendar), 13 (day list and pay sheet), and 14 (new bill). V4's
+  iPhone half (PWA,
   deploy, home-screen check) waits until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
 - **Repo contents:** `README.md`, `.gitignore`, `docs/SNAPSHOT.md` (this
@@ -420,6 +422,49 @@ not money. Core needs:
     browser against the local stack) before its commit, and approved.
   - **143 unit tests and 163 db tests pass.** Three commits, plus this
     snapshot.
+  - **After the snapshot: a CI false alarm.** The bundle secret check
+    failed on the first app build because supabase-js itself contains the
+    text `sb_secret_` (it refuses secret keys in the browser). The check
+    now matches key values (`sb_secret_` plus 16 or more key characters),
+    and was confirmed to still catch a fake key. One more commit.
+- **Session 17 (2026-11-24):**
+  - **The daily health Action stayed green:** 7 scheduled runs, 11/18 to
+    11/24.
+  - **Task 12: the home calendar** (`src/home/`):
+    - the month grid, each day filled with its most urgent status, today
+      outlined,
+    - totals ("$X paid / overdue / left"), each labelled once, and no bill
+      counts anywhere, including screen-reader labels,
+    - month arrows, the calendar/chart toggle (chart is a placeholder until
+      Task 16), and the Household / Mine switch, remembered in `last_view`
+      and hidden without a household,
+    - "today" and the default month come from the scope's time zone
+      (`todayIn`),
+    - review caught a top bar that overflowed at 390 px and a false
+      "Nothing due this month. $0" flash while loading; both fixed.
+  - **Task 13: the day list and pay sheet** (the first screen that writes):
+    - tap a day to list its bills, tap a bill for the pay sheet,
+    - amount pre-filled; a different amount offers "Use $X from now on",
+    - "Paid on" defaults to the scope's today and can't be in the future,
+    - credit cards get minimum and statement fields, saved on close
+      without a payment,
+    - recorded payments with an inline "Remove this payment?" undo,
+    - `Sheet` now traps Tab focus,
+    - the preview caught a paid bill still inviting a second full payment
+      (now blank with a "Paid" pill) and the day list reusing the calendar's
+      fill classes (status showed as a full-width bar).
+  - **Task 14: the new bill page** (`src/bills/`):
+    - name, Household / Just mine, Amount, Due with schedule, Category,
+      More details (nickname, last 4, https payment link),
+    - checks match the database limits, and the insert sends exactly the
+      granted columns (tested against the real calls),
+    - custom categories inline, with a 12-colour palette
+      (`src/lib/palette.ts`, contrast-tested).
+  - **Every screen was tried against the local database at iPhone width**
+    (390 px) and shown to Aamir before its commit.
+  - **258 unit tests and 163 db tests pass.** Three commits, plus this
+    snapshot. From this session on, commits carry no AI attribution
+    trailer (Aamir's global instructions).
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -737,6 +782,31 @@ and the invite details.
 - **For Task 19:** map `FunctionsFetchError` (a gateway 401) to "sign in
   again". `could_not_delete` already has copy.
 
+**New calls from session 17 (not yet reviewed by Aamir, except where noted):**
+- **Category palette approved as is** (Aamir, 2026-11-24): the 6 seeded
+  colours plus Peach, Seafoam, Periwinkle, Blush, Pistachio, Sand. Easy to
+  revisit later.
+- **"Today" always means the scope's local date:** the household's zone for
+  household bills, the profile's zone for personal ones. This drives the
+  calendar outline, the default month, and "Paid on".
+- **"Minimum covered" counts only recorded payments,** matching the
+  database's paid rule. A typed amount only shows a grey hint.
+- **A paid bill's pay sheet opens blank** (Mark paid off) with a "Paid" pill;
+  a partly paid one pre-fills what's left. Extra payments stay possible.
+- **A $0 statement balance can't be entered;** blank means none.
+- **A new bill starts in the last-used view,** and switching scope clears the
+  chosen category (categories are per scope).
+- **"Add your first bill" counts archived bills,** so it only shows when a
+  scope has never had a bill.
+- **Carry-forwards:**
+  - Task 15 reuses `BillRows`; Edit bill must invalidate `['entries']`,
+    `['entry']`, and `['has-bills']`.
+  - Day buttons are 40 px and segmented buttons 36 px, under the 44 px touch
+    target; revisit in a polish pass.
+  - The selected day's ring overrides today's outline; add `aria-pressed` on
+    the selected day.
+  - `OfflineBanner` still needs a persistent live region.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -771,11 +841,9 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 12: the home calendar view**, the month grid colored by
-   status, plus the totals. Show Aamir the screen, and category palette
-   options, at iPhone size before committing. Then Tasks 13–19 (pay
-   sheet, new bill, edit bill, donut, settings, household, delete
-   account).
+1. **Task 15: Edit bill, the history timeline, and archive.** It reuses
+   `BillRows` from Task 14. Show Aamir at iPhone size before committing.
+   Then Tasks 16 to 19 (donut, settings, household, delete account).
 2. **Watch the daily health Action.** A failure email from GitHub means
    look right away.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
