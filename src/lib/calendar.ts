@@ -28,3 +28,17 @@ export function todayIn(timeZone: string, now: Date = new Date()): string {
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
+
+/**
+ * An ISO date for people: 'Sun, Oct 18' (short), 'Sunday, October 18' (long)
+ * or 'Oct 18' (date). UTC math, so the local zone can't shift the day.
+ */
+export function formatDay(iso: string, style: 'short' | 'long' | 'date' = 'short'): string {
+  const [y, mo, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    ...(style === 'date' ? {} : { weekday: style }),
+    month: style === 'long' ? 'long' : 'short',
+    day: 'numeric',
+  });
+}

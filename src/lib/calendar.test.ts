@@ -1,5 +1,5 @@
-import { expect, test } from 'vitest';
-import { monthGrid, todayIn } from './calendar';
+import { describe, expect, test } from 'vitest';
+import { formatDay, monthGrid, todayIn } from './calendar';
 
 test('Oct 2026 grid starts on Thursday the 1st', () =>
   expect(monthGrid(2026, 10)[0]).toEqual([null, null, null, null, '2026-10-01', '2026-10-02', '2026-10-03']));
@@ -50,3 +50,11 @@ test('todayIn matches UTC when the zone agrees', () =>
 
 test('todayIn falls back to UTC for an invalid zone', () =>
   expect(todayIn('Not/AZone', new Date('2026-10-05T02:30:00Z'))).toBe('2026-10-05'));
+
+describe('formatDay', () => {
+  test('formats in three styles without zone drift', () => {
+    expect(formatDay('2026-10-18')).toBe('Sun, Oct 18');
+    expect(formatDay('2026-10-18', 'long')).toBe('Sunday, October 18');
+    expect(formatDay('2026-10-18', 'date')).toBe('Oct 18');
+  });
+});

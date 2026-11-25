@@ -171,3 +171,64 @@ button.day {
   margin-top: 96px;
   text-align: center;
 }
+
+/* Day list */
+.day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.day-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.day-bill {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--space-3);
+  row-gap: 2px;
+  width: 100%;
+  padding: 14px 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.day-bill-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.day-bill-amount {
+  text-align: right;
+}
+
+.day-bill-status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.day-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--butter);
+}
+
+.day-status-paid .day-dot {
+  background: var(--sage);
+}
+
+.day-status-overdue .day-dot {
+  background: var(--rose);
+}

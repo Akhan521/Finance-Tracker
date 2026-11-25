@@ -13,6 +13,7 @@ import {
   type View,
 } from '../lib/queries';
 import CalendarView from './CalendarView';
+import DayList from './DayList';
 import { MONTH_NAMES } from './months';
 import Totals from './Totals';
 import '../Pages.css';
@@ -60,7 +61,6 @@ export default function Home({ userId }: { userId: string }) {
 
   const [ym, setYm] = useState(() => ({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) }));
   const [mode, setMode] = useState<Mode>('calendar');
-  // DayList (Task 13) will read this.
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
@@ -160,6 +160,9 @@ export default function Home({ userId }: { userId: string }) {
             onSelectDay={setSelectedDay}
           />
           {entries.data && <Totals entries={rows} />}
+          {selectedDay && (
+            <DayList userId={userId} day={selectedDay} entries={rows} onClose={() => setSelectedDay(null)} />
+          )}
         </>
       ) : (
         <p className="page-quiet chart-soon">Chart coming soon</p>

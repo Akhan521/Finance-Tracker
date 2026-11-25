@@ -13,6 +13,9 @@ export const keys = {
   invites: (userId: string) => ['invites', userId] as const,
   monthEntries: (userId: string, view: View, householdId: string | null, year: number, month: number) =>
     ['entries', userId, view, householdId, year, month] as const,
+  entry: (userId: string, entryId: string) => ['entry', userId, entryId] as const,
+  entryPayments: (userId: string, entryId: string) => ['entry-payments', userId, entryId] as const,
+  householdNames: (userId: string) => ['household-names', userId] as const,
   hasBills: (userId: string, view: View, householdId: string | null) =>
     ['has-bills', userId, view, householdId] as const,
 };
@@ -153,5 +156,166 @@ export function useSetLastView(userId: string) {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.profile(userId) }),
+  });
+}
+
+export type EntryDetail = {
+  id: string;
+  billId: string;
+  dueDate: string;
+  status: Status;
+  expectedCents: number;
+  minimumCents: number | null;
+  statementCents: number | null;
+  paidCents: number;
+  targetCents: number;
+  isCreditCard: boolean;
+  householdId: string | null;
+  ownerId: string | null;
+  billName: string;
+  usualCents: number;
+  payUrl: string | null;
+  categoryName: string;
+  categoryColor: string;
+};
+
+// One entry with what the pay sheet needs from its bill and category.
+export function useEntry(userId: string, entryId: string) {
+  return useQuery({
+    queryKey: keys.entry(userId, entryId),
+    queryFn: async (): Promise<EntryDetail> => {
+      const { data: e, error } = await supabase.from('entry_view').select('*').eq('id', entryId).single();
+      if (error) throw error;
+      const { data: b, error: billError } = await supabase
+        .from('bills')
+        .select('name, usual_cents, pay_url, is_credit_card, household_id, owner_id, categories(name, color)')
+        .eq('id', e.bill_id)
+        .single();
+      if (billError) throw billError;
+      return {
+        id: e.id,
+        billId: e.bill_id,
+        dueDate: e.due_date,
+        status: (e.status ?? 'upcoming') as Status,
+        expectedCents: e.expected_cents,
+        minimumCents: e.minimum_cents,
+        statementCents: e.statement_cents,
+        paidCents: e.paid_cents ?? 0,
+        targetCents: e.target_cents ?? e.expected_cents,
+        isCreditCard: b.is_credit_card,
+        householdId: b.household_id,
+        ownerId: b.owner_id,
+        billName: b.name,
+        usualCents: b.usual_cents,
+        payUrl: b.pay_url,
+        categoryName: b.categories?.name ?? '',
+        categoryColor: b.categories?.color ?? '',
+      };
+    },
+  });
+}
+
+export type PaymentRow = { id: string; amount_cents: number; paid_on: string; paid_by: string | null };
+
+// The payments recorded against an entry, newest first.
+export function useEntryPayments(userId: string, entryId: string) {
+  return useQuery({
+    queryKey: keys.entryPayments(userId, entryId),
+    queryFn: async (): Promise<PaymentRow[]> => {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('id, amount_cents, paid_on, paid_by')
+        .eq('entry_id', entryId)
+        .order('paid_on', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Names of the household's members, for "who paid". Only fetched when needed.
+export function useHouseholdNames(userId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.householdNames(userId),
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('household_names');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Every write refreshes the calendar rows and totals (the whole 'entries' prefix
+// for this person) plus the entry's own entry and payments.
+function refreshEntry(qc: ReturnType<typeof useQueryClient>, userId: string, entryId: string) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['entries', userId] }),
+    qc.invalidateQueries({ queryKey: keys.entry(userId, entryId) }),
+    qc.invalidateQueries({ queryKey: keys.entryPayments(userId, entryId) }),
+  ]);
+}
+
+// paid_by is set by the database to whoever is signed in; it is never sent.
+export function useAddPayment(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { entryId: string; amountCents: number; paidOn: string }) => {
+      const { error } = await supabase
+        .from('payments')
+        .insert({ entry_id: v.entryId, amount_cents: v.amountCents, paid_on: v.paidOn });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => refreshEntry(qc, userId, v.entryId),
+  });
+}
+
+export function useRemovePayment(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { paymentId: string; entryId: string }) => {
+      const { error } = await supabase.from('payments').delete().eq('id', v.paymentId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => refreshEntry(qc, userId, v.entryId),
+  });
+}
+
+// Saves this cycle's figures on a credit card entry. null clears a figure.
+export function useSaveCardFigures(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { entryId: string; minimumCents: number | null; statementCents: number | null }) => {
+      const { error } = await supabase
+        .from('entries')
+        .update({ minimum_cents: v.minimumCents, statement_cents: v.statementCents })
+        .eq('id', v.entryId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => refreshEntry(qc, userId, v.entryId),
+  });
+}
+
+// Only the columns a client may change (not scope or the card flag).
+export type BillPatch = Omit<
+  Database['public']['Tables']['bills']['Update'],
+  'id' | 'created_at' | 'household_id' | 'owner_id' | 'is_credit_card'
+>;
+
+export function useUpdateBill(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { billId: string; patch: BillPatch }) => {
+      const { error } = await supabase.from('bills').update(v.patch).eq('id', v.billId);
+      if (error) throw error;
+    },
+    // Entries show their bill's name and usual amount, so every cached entry is refreshed.
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['entries', userId] }),
+        qc.invalidateQueries({ queryKey: ['entry', userId] }),
+        qc.invalidateQueries({ queryKey: ['has-bills', userId] }),
+      ]),
   });
 }
