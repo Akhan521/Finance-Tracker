@@ -23,6 +23,9 @@ vi.mock('./lib/queries', () => ({
   useMyInvites: () => m.invites,
   useUpdateProfile: () => ({ mutateAsync: vi.fn() }),
   useAcceptInvite: () => ({ mutateAsync: vi.fn() }),
+  useMonthEntries: () => ({ data: [], isError: false }),
+  useHasBills: () => ({ data: false }),
+  useSetLastView: () => ({ mutate: vi.fn() }),
 }));
 
 import App from './App';

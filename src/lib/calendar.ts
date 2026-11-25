@@ -14,3 +14,17 @@ export function monthGrid(year: number, month: number): (string | null)[][] {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   return weeks;
 }
+
+/** The local ISO date (YYYY-MM-DD) in an IANA time zone at a moment. */
+export function todayIn(timeZone: string, now: Date = new Date()): string {
+  const fmt = (tz: string) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = fmt(timeZone);
+  } catch {
+    parts = fmt('UTC'); // an invalid zone falls back to UTC
+  }
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}

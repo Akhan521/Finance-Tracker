@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { monthGrid } from './calendar';
+import { monthGrid, todayIn } from './calendar';
 
 test('Oct 2026 grid starts on Thursday the 1st', () =>
   expect(monthGrid(2026, 10)[0]).toEqual([null, null, null, null, '2026-10-01', '2026-10-02', '2026-10-03']));
@@ -37,3 +37,16 @@ test('December and January pad month numbers', () => {
   expect(monthGrid(2026, 12).flat().filter(Boolean).at(-1)).toBe('2026-12-31');
   expect(monthGrid(2026, 1).flat().find(Boolean)).toBe('2026-01-01');
 });
+
+// 2026-10-05 02:30 UTC is still Oct 4 at 7:30 pm in Los Angeles (UTC-7) and already Oct 5 in Tokyo.
+test('todayIn is behind UTC for a western zone', () =>
+  expect(todayIn('America/Los_Angeles', new Date('2026-10-05T02:30:00Z'))).toBe('2026-10-04'));
+
+test('todayIn is ahead of UTC for an eastern zone', () =>
+  expect(todayIn('Pacific/Auckland', new Date('2026-10-04T20:00:00Z'))).toBe('2026-10-05'));
+
+test('todayIn matches UTC when the zone agrees', () =>
+  expect(todayIn('UTC', new Date('2026-12-31T23:59:00Z'))).toBe('2026-12-31'));
+
+test('todayIn falls back to UTC for an invalid zone', () =>
+  expect(todayIn('Not/AZone', new Date('2026-10-05T02:30:00Z'))).toBe('2026-10-05'));
