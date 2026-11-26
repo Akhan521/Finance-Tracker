@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-24 (end of session 17: the home calendar, the day list and pay sheet, and the new bill page done)
+**Last updated:** 2026-11-25 (end of session 18: edit bill and history, the donut, and settings with create/leave household and CSV export done)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is under way: Tasks 10 to 14 and V4's local sign-in are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is under way: Tasks 10 to 17 and V4's local sign-in are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -51,7 +51,9 @@ not money. Core needs:
   live.** The keep-alive part of Task 23 is live too. **Phase 3 has
   started:** Task 10 (pure logic), V4's local half (code sign-in), and
   Task 11 (app shell, theme, first run) are done, and so are Tasks 12
-  (home calendar), 13 (day list and pay sheet), and 14 (new bill). V4's
+  (home calendar), 13 (day list and pay sheet), 14 (new bill), 15 (edit
+  bill, history, archive), 16 (category donut), and 17 (settings, create and
+  leave household, CSV export). V4's
   iPhone half (PWA,
   deploy, home-screen check) waits until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
@@ -465,6 +467,46 @@ not money. Core needs:
   - **258 unit tests and 163 db tests pass.** Three commits, plus this
     snapshot. From this session on, commits carry no AI attribution
     trailer (Aamir's global instructions).
+- **Session 18 (2026-11-25):**
+  - **The daily health Action stayed green** (11/24 and 11/25 runs).
+  - **Task 15: edit bill, history timeline, archive** (`src/bills/EditBill.tsx`,
+    `HistoryTimeline.tsx`, `src/settings/ArchivedBills.tsx`):
+    - the same rows as New bill; Save sends only changed columns; "Done"
+      when nothing is pending,
+    - the history timeline (green dots for payments, lavender for changes;
+      "was <old> · <date> · <name>"; dates in the scope's zone; last 4 and
+      payment-link changes never show values; a schedule change is one line),
+    - archive with an inline confirm; the Archived bills page with Restore.
+  - **Task 16: the category donut** (`src/home/DonutView.tsx`, `arcs.ts`,
+    `deepen.ts`):
+    - inline SVG arcs, rounded ends, 2° gaps, a minimum slot so small
+      categories stay visible,
+    - paid in a deeper shade of each category colour, owed in the stored
+      pastel (matches mockup A within a tested margin),
+    - center "$X left of $Y"; the legend drops "of $N left" when all of it is
+      overdue; the totals row hides in chart view,
+    - review caught a real bug, also present in Task 12's calendar: after a
+      Household/Mine switch the previous scope's rows showed until the new
+      fetch landed. Placeholder data is now kept across months only, never
+      across scopes.
+  - **Task 17 in three commits (Aamir asked for meaningful pieces):**
+    - **17a, the settings screen:** reminders, lead time, keep history, name,
+      Sign out and Sign out of all devices, links; saves on change, a failed
+      save reverts with calm copy; Home's temporary Sign out is gone.
+    - **17b, create and leave household:** create (device zone, fixed after);
+      leave with an inline confirm; last owner blocked with mapped copy; a
+      sole member sees a note instead; every household-scoped cache is
+      removed only after the server confirms the leave.
+    - **17c, CSV export:** `bills-YYYY-MM-DD.csv` with the Excel marker (BOM,
+      Aamir's choice), plain decimal amounts, one row per payment, every
+      select paged in a stable order, entries through the end of the current
+      month plus any entry with a payment; never last 4, links or nicknames.
+  - **Every screen was tried against the local database at iPhone width**
+    (archive and restore, leave and create, sign out and back in, a captured
+    export) and shown to Aamir before its commit. Test data was restored
+    after each check.
+  - **398 unit tests and 163 db tests pass.** Five commits, plus this
+    snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -807,6 +849,28 @@ and the invite details.
     the selected day.
   - `OfflineBanner` still needs a persistent live region.
 
+**New calls from session 18 (not yet reviewed by Aamir, except where noted):**
+- **CSV starts with the Excel marker** (Aamir, 2026-11-25).
+- **The export is a record, not a forecast:** entries due through the end of
+  the current month (profile zone), plus any entry with a payment, so an
+  early payment is never dropped.
+- **Export amounts are plain decimals** ("1980.00") so spreadsheets can sum
+  them; a helper refuses negatives.
+- **Settings has both Sign out and Sign out of all devices.**
+- **A sole member can't leave;** they delete the household on the Household
+  screen (Task 18).
+- **The household time zone comes from the creator's device** and can't be
+  changed later (no update grant).
+- **Deep category shades are computed** (lightness down 13 points), so custom
+  categories get a paid shade too.
+- **Carry-forwards:**
+  - Task 18: the Household screen (members, invites, owner actions, "Keep
+    history for" for the household, Delete household for a sole member);
+    Settings' sole-member note points there.
+  - The Archived bills title sits slightly right of centre (empty right slot
+    in the shared top bar); polish pass.
+  - `OfflineBanner` still needs a persistent live region.
+
 Any new calls go in a fresh list here.
 
 ## Ruled out (and why)
@@ -841,9 +905,11 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 15: Edit bill, the history timeline, and archive.** It reuses
-   `BillRows` from Task 14. Show Aamir at iPhone size before committing.
-   Then Tasks 16 to 19 (donut, settings, household, delete account).
+1. **Task 18: the Household screen and the invite email.** Members with
+   roles, owners' invites and actions, the household's keep-history setting,
+   and Delete household for a sole member. Show Aamir at iPhone size before
+   committing, and split it into meaningful commits where it helps. Then
+   Task 19 (delete account), then Phase 4.
 2. **Watch the daily health Action.** A failure email from GitHub means
    look right away.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
