@@ -1,23 +1,29 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import Sheet from './Sheet';
 import './ui.css';
 
 export type Option<T extends string> = { value: T; label: string };
 type Props<T extends string> = {
   label: string;
+  caption?: string;
+  disabled?: boolean;
   value: T;
   options: Option<T>[];
   onChange: (value: T) => void;
 };
 
 // A row showing the current choice; tapping opens a sheet with the options.
-export default function Picker<T extends string>({ label, value, options, onChange }: Props<T>) {
+export default function Picker<T extends string>({ label, caption, disabled, value, options, onChange }: Props<T>) {
   const [open, setOpen] = useState(false);
+  const captionId = useId();
   const current = options.find((o) => o.value === value);
   return (
     <>
-      <button type="button" className="row row-button" onClick={() => setOpen(true)}>
-        <span>{label}</span>
+      <button type="button" className="row row-button" disabled={disabled} aria-describedby={caption ? captionId : undefined} onClick={() => setOpen(true)}>
+        <span>
+          {label}
+          {caption && <small id={captionId} className="row-caption">{caption}</small>}
+        </span>
         <span className="row-value">{current?.label ?? ''}</span>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={label}>

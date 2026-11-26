@@ -1,7 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
 import { todayIn } from '../lib/calendar';
 import { errorMessage } from '../lib/errors';
 import {
@@ -51,7 +49,6 @@ function Segmented<T extends string>({
 }
 
 export default function Home({ userId }: { userId: string }) {
-  const qc = useQueryClient();
   const profile = useProfile(userId).data;
   const household = useMyHousehold(userId).data?.households ?? null;
   const setLastView = useSetLastView(userId);
@@ -64,7 +61,6 @@ export default function Home({ userId }: { userId: string }) {
   const [ym, setYm] = useState(() => ({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) }));
   const [mode, setMode] = useState<Mode>('calendar');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
 
   const entries = useMonthEntries(userId, view, ym.year, ym.month);
   const hasBills = useHasBills(userId, view);
@@ -87,16 +83,6 @@ export default function Home({ userId }: { userId: string }) {
     setSelectedDay(null);
     setView(next);
     setLastView.mutate(next);
-  }
-
-  async function signOut() {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      qc.clear();
-    } catch {
-      setMessage("Couldn't sign out. Please try again.");
-    }
   }
 
   const currentYear = Number(today.slice(0, 4));
@@ -178,16 +164,6 @@ export default function Home({ userId }: { userId: string }) {
         ) : (
           entries.data && categories.data && <DonutView rows={rows} categories={categoryMap} />
         )
-      )}
-
-      {/* Temporary until Settings (Task 17) has its own sign-out. */}
-      <button type="button" className="signout" onClick={() => void signOut()}>
-        Sign out
-      </button>
-      {message && (
-        <p role="alert" className="page-quiet signout-message">
-          {message}
-        </p>
       )}
     </main>
   );

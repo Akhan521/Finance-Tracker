@@ -1,0 +1,15 @@
+.settings-quiet {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.group-rows > a.row-button {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.row-caption {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}

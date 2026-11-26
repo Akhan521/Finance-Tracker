@@ -198,4 +198,9 @@ describe('Home', () => {
     await user.click(screen.getByRole('button', { name: 'Previous month' }));
     expect(screen.getByRole('heading').textContent).toBe('December 2025');
   });
+
+  test('no longer renders Sign out (Settings owns it)', () => {
+    wrap();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+  });
 });

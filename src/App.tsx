@@ -13,6 +13,7 @@ import Home from './home/Home';
 import { Placeholder } from './Pages';
 import ArchivedBills from './settings/ArchivedBills';
 import InviteBanner from './settings/InviteBanner';
+import Settings from './settings/Settings';
 import OfflineBanner from './ui/OfflineBanner';
 
 const dismissedKey = (userId: string) => `invite-dismissed:${userId}`;
@@ -100,7 +101,7 @@ function Gate({ userId }: { userId: string }) {
       <Route path="/" element={<Home userId={userId} />} />
       <Route path="/bills/new" element={<NewBill userId={userId} />} />
       <Route path="/bills/:id" element={<EditBill userId={userId} />} />
-      <Route path="/settings" element={<Placeholder title="Settings" />} />
+      <Route path="/settings" element={<Settings userId={userId} />} />
       <Route path="/settings/household" element={<Placeholder title="Household" back="/settings" />} />
       <Route path="/settings/archived" element={<ArchivedBills userId={userId} />} />
       <Route path="/settings/delete-account" element={<Placeholder title="Delete account" back="/settings" />} />
