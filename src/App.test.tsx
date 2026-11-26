@@ -25,6 +25,7 @@ vi.mock('./lib/queries', () => ({
   useAcceptInvite: () => ({ mutateAsync: vi.fn() }),
   useMonthEntries: () => ({ data: [], isError: false }),
   useHasBills: () => ({ data: false }),
+  useCategories: () => ({ data: [], isError: false }),
   useSetLastView: () => ({ mutate: vi.fn() }),
 }));
 

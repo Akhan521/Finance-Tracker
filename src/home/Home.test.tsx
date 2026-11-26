@@ -10,6 +10,10 @@ const m = vi.hoisted(() => ({
   household: {} as unknown,
   entries: [] as unknown[] | undefined,
   hasBills: true,
+  entriesByView: {} as Record<string, unknown[] | undefined>,
+  categories: undefined as unknown[] | undefined,
+  categoriesError: false,
+  categoryScopes: [] as string[],
   setLastView: vi.fn(),
   monthArgs: [] as unknown[][],
 }));
@@ -20,9 +24,14 @@ vi.mock('../lib/queries', () => ({
   useMyHousehold: () => ({ data: m.household }),
   useMonthEntries: (...args: unknown[]) => {
     m.monthArgs.push(args);
-    return { data: m.entries, isSuccess: !!m.entries, isError: false };
+    const data = (args[1] as string) in m.entriesByView ? m.entriesByView[args[1] as string] : m.entries;
+    return { data, isSuccess: !!data, isError: false };
   },
   useHasBills: () => ({ data: m.hasBills }),
+  useCategories: (_u: string, scope: string) => {
+    m.categoryScopes.push(scope);
+    return { data: m.categoriesError ? undefined : m.categories, isError: m.categoriesError };
+  },
   useSetLastView: () => ({ mutate: m.setLastView }),
 }));
 // Fixed "now": 2026-10-05 03:00 UTC. Los Angeles is still Oct 4, Auckland is Oct 5 (16:00).
@@ -51,6 +60,10 @@ describe('Home', () => {
     m.household = { households: { id: 'h1', time_zone: 'America/Los_Angeles' } };
     m.entries = [entry];
     m.hasBills = true;
+    m.categories = [{ id: 'c', name: 'Housing', color: '#f7d9c4', is_credit_card: false }];
+    m.categoryScopes = [];
+    m.entriesByView = {};
+    m.categoriesError = false;
     m.monthArgs = [];
     m.setLastView.mockReset();
   });
@@ -97,11 +110,63 @@ describe('Home', () => {
     expect(m.monthArgs.at(-1)?.slice(2)).toEqual([2027, 1]);
   });
 
-  test('the toggle swaps the calendar for a calm chart placeholder', async () => {
+  test('the toggle swaps the calendar for the donut and hides the totals row', async () => {
+    wrap();
+    expect(document.querySelector('.totals')).not.toBeNull();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Chart view' }));
+    expect(screen.getByText('left of $50')).toBeTruthy();
+    expect(screen.getByText('Housing')).toBeTruthy();
+    expect(document.querySelector('.totals')).toBeNull();
+    expect(screen.queryByRole('button', { name: /October 4/ })).toBeNull();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Calendar view' }));
+    expect(document.querySelector('.totals')).not.toBeNull();
+  });
+
+  test('the donut follows Household/Mine and keeps the month arrows', async () => {
+    wrap();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Chart view' }));
+    expect(m.categoryScopes.at(-1)).toBe('household');
+    await user.click(screen.getByRole('button', { name: 'Mine' }));
+    expect(m.categoryScopes.at(-1)).toBe('mine');
+    await user.click(screen.getByRole('button', { name: 'Previous month' }));
+    expect(m.monthArgs.at(-1)?.slice(1)).toEqual(['mine', 2026, 9]);
+  });
+
+  test('after a scope switch, the old scope rows never render (donut or calendar) while the new ones load', async () => {
+    m.entriesByView = { mine: undefined }; // the new scope has no data yet (no stale placeholder)
+    wrap();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Chart view' }));
+    expect(screen.getByText('Housing')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Mine' }));
+    expect(screen.queryByText('Other')).toBeNull();
+    expect(screen.queryByText('Housing')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Calendar view' }));
+    expect(document.querySelector('.totals')).toBeNull();
+  });
+
+  test('a categories error shows a quiet line, not grey Other slices', async () => {
+    m.categoriesError = true;
     wrap();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Chart view' }));
-    expect(screen.getByText('Chart coming soon')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /October 4/ })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't load categories.");
+    expect(screen.queryByText('Other')).toBeNull();
+    expect(document.body.textContent).not.toContain('left of');
+  });
+
+  test('the donut shows nothing while the first load is pending, and a quiet line for an empty month', async () => {
+    m.entries = undefined;
+    wrap();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Chart view' }));
+    expect(document.body.textContent).not.toContain('$0');
+    expect(screen.queryByText('Nothing due this month.')).toBeNull();
+    cleanup();
+    m.entries = [];
+    wrap();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Chart view' }));
+    expect(screen.getByText('Nothing due this month.')).toBeTruthy();
   });
 
   test('with no bills at all, offers the first bill and shows no count', () => {

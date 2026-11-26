@@ -55,7 +55,7 @@ vi.mock('./supabase', () => {
   return { supabase: { from } };
 });
 
-import { useArchiveBill, useArchivedBills, useBillHistory, useCreateBill, useCreateCategory, useRestoreBill } from './queries';
+import { useArchiveBill, useArchivedBills, useBillHistory, useCreateBill, useCreateCategory, useRestoreBill, keys, sameEntriesScope } from './queries';
 
 const bill = {
   household_id: 'h1', owner_id: null, category_id: 'c', name: 'Rent', usual_cents: 100, schedule: 'monthly' as const,
@@ -170,5 +170,15 @@ describe('real inserts', () => {
     expect(m.calls).toContainEqual(['not', 'archived_at', 'is', null]);
     expect(m.calls).toContainEqual(['order', 'name']);
     expect(m.calls.filter((c) => c[0] === 'eq')).toEqual([]);
+  });
+});
+
+describe('sameEntriesScope', () => {
+  test('stepping months keeps the scope; switching view or household does not', () => {
+    const base = keys.monthEntries('u', 'household', 'h1', 2026, 10);
+    expect(sameEntriesScope(base, keys.monthEntries('u', 'household', 'h1', 2026, 11))).toBe(true);
+    expect(sameEntriesScope(base, keys.monthEntries('u', 'household', 'h1', 2027, 1))).toBe(true);
+    expect(sameEntriesScope(base, keys.monthEntries('u', 'mine', null, 2026, 10))).toBe(false);
+    expect(sameEntriesScope(base, keys.monthEntries('u', 'household', 'h2', 2026, 10))).toBe(false);
   });
 });

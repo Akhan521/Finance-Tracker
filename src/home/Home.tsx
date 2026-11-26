@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { todayIn } from '../lib/calendar';
 import { errorMessage } from '../lib/errors';
 import {
+  useCategories,
   useHasBills,
   useMonthEntries,
   useMyHousehold,
@@ -14,6 +15,7 @@ import {
 } from '../lib/queries';
 import CalendarView from './CalendarView';
 import DayList from './DayList';
+import DonutView from './DonutView';
 import { MONTH_NAMES } from './months';
 import Totals from './Totals';
 import '../Pages.css';
@@ -66,6 +68,11 @@ export default function Home({ userId }: { userId: string }) {
 
   const entries = useMonthEntries(userId, view, ym.year, ym.month);
   const hasBills = useHasBills(userId, view);
+  const categories = useCategories(userId, view);
+  const categoryMap = useMemo(
+    () => new Map((categories.data ?? []).map((c) => [c.id, { name: c.name, color: c.color }])),
+    [categories.data],
+  );
 
   function step(delta: number) {
     setSelectedDay(null);
@@ -165,7 +172,12 @@ export default function Home({ userId }: { userId: string }) {
           )}
         </>
       ) : (
-        <p className="page-quiet chart-soon">Chart coming soon</p>
+        // Say nothing until the month and its categories have loaded once: no false $0.
+        categories.isError ? (
+          <p role="alert" className="page-quiet">Couldn't load categories.</p>
+        ) : (
+          entries.data && categories.data && <DonutView rows={rows} categories={categoryMap} />
+        )
       )}
 
       {/* Temporary until Settings (Task 17) has its own sign-out. */}

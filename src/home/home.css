@@ -167,11 +167,6 @@ button.day {
   border-radius: 50%;
 }
 
-.chart-soon {
-  margin-top: 96px;
-  text-align: center;
-}
-
 /* Day list */
 .day-list {
   list-style: none;
@@ -230,5 +225,116 @@ button.day {
 }
 
 .day-status-overdue .day-dot {
+  background: var(--rose);
+}
+
+/* Donut */
+.donut-empty {
+  margin-top: 96px;
+  text-align: center;
+}
+
+.donut-ring {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  margin: var(--space-4) auto var(--space-5);
+}
+
+.donut-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.donut-center b {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-center b.donut-md {
+  font-size: 20px;
+}
+
+.donut-center b.donut-sm {
+  font-size: 17px;
+}
+
+.donut-center span.donut-sub-sm {
+  font-size: 11px;
+}
+
+.donut-center span {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.donut-legend li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-legend li:last-child {
+  border-bottom: none;
+}
+
+.donut-name {
+  color: var(--ink);
+}
+
+.donut-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-2);
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.donut-overdue {
+  color: var(--ink);
+}
+
+.donut-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(61, 58, 53, 0.12);
+}
+
+.donut-pill {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1);
+  border-radius: 50%;
   background: var(--rose);
 }

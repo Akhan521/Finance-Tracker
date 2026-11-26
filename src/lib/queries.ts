@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import type { Database } from './database.types';
 import type { EntryRow, Status } from './totals';
@@ -102,12 +102,20 @@ function householdIdOf(data: ReturnType<typeof useMyHousehold>['data']): string 
  * Entries due in a month for one scope. Household means the household's
  * bills; Mine means the person's own personal bills. Never mixed.
  */
+/** Month entries share a scope when user, view and household match (only the month differs). */
+export function sameEntriesScope(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return [0, 1, 2, 3].every((i) => a[i] === b[i]);
+}
+
 export function useMonthEntries(userId: string, view: View, year: number, month: number) {
   const householdId = householdIdOf(useMyHousehold(userId).data);
+  const queryKey = keys.monthEntries(userId, view, householdId, year, month);
   return useQuery({
-    queryKey: keys.monthEntries(userId, view, householdId, year, month),
+    queryKey,
     enabled: view === 'mine' || !!householdId,
-    placeholderData: keepPreviousData,
+    // Stepping months keeps the previous month on screen while loading, but never another scope's rows.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && sameEntriesScope(previousQuery.queryKey, queryKey) ? previous : undefined,
     queryFn: async (): Promise<EntryRow[]> => {
       const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
       let q = supabase
