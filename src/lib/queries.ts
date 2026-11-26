@@ -15,6 +15,9 @@ export const keys = {
     ['entries', userId, view, householdId, year, month] as const,
   entry: (userId: string, entryId: string) => ['entry', userId, entryId] as const,
   entryPayments: (userId: string, entryId: string) => ['entry-payments', userId, entryId] as const,
+  bill: (userId: string, billId: string) => ['bill', userId, billId] as const,
+  billHistory: (userId: string, billId: string) => ['bill-history', userId, billId] as const,
+  archivedBills: (userId: string) => ['archived-bills', userId] as const,
   householdNames: (userId: string) => ['household-names', userId] as const,
   hasBills: (userId: string, view: View, householdId: string | null) =>
     ['has-bills', userId, view, householdId] as const,
@@ -297,11 +300,25 @@ export function useSaveCardFigures(userId: string) {
   });
 }
 
-// Only the columns a client may change (not scope or the card flag).
+// Only the columns a client may change (not scope, the card flag or archiving,
+// which has its own hooks).
 export type BillPatch = Omit<
   Database['public']['Tables']['bills']['Update'],
-  'id' | 'created_at' | 'household_id' | 'owner_id' | 'is_credit_card'
+  'id' | 'created_at' | 'household_id' | 'owner_id' | 'is_credit_card' | 'archived_at'
 >;
+
+// Every bill write refreshes the calendar, the pay sheet, the bill itself, its
+// history (the triggers add rows) and the archived list.
+function refreshBill(qc: ReturnType<typeof useQueryClient>, userId: string, billId: string) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['entries', userId] }),
+    qc.invalidateQueries({ queryKey: ['entry', userId] }),
+    qc.invalidateQueries({ queryKey: ['has-bills', userId] }),
+    qc.invalidateQueries({ queryKey: keys.bill(userId, billId) }),
+    qc.invalidateQueries({ queryKey: keys.billHistory(userId, billId) }),
+    qc.invalidateQueries({ queryKey: keys.archivedBills(userId) }),
+  ]);
+}
 
 export function useUpdateBill(userId: string) {
   const qc = useQueryClient();
@@ -311,12 +328,77 @@ export function useUpdateBill(userId: string) {
       if (error) throw error;
     },
     // Entries show their bill's name and usual amount, so every cached entry is refreshed.
-    onSuccess: () =>
-      Promise.all([
-        qc.invalidateQueries({ queryKey: ['entries', userId] }),
-        qc.invalidateQueries({ queryKey: ['entry', userId] }),
-        qc.invalidateQueries({ queryKey: ['has-bills', userId] }),
-      ]),
+    onSuccess: (_d, v) => refreshBill(qc, userId, v.billId),
+  });
+}
+
+// Archiving and restoring send exactly one column, so history records one event.
+function useSetArchived(userId: string, archivedAt: () => string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (billId: string) => {
+      const { error } = await supabase.from('bills').update({ archived_at: archivedAt() }).eq('id', billId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, billId) => refreshBill(qc, userId, billId),
+  });
+}
+
+export const useArchiveBill = (userId: string) => useSetArchived(userId, () => new Date().toISOString());
+export const useRestoreBill = (userId: string) => useSetArchived(userId, () => null);
+
+export type BillDetail = Database['public']['Tables']['bills']['Row'] & {
+  categories: { name: string; color: string } | null;
+};
+
+// One bill with its category, or null when it doesn't exist or isn't visible.
+export function useBill(userId: string, billId: string) {
+  return useQuery({
+    queryKey: keys.bill(userId, billId),
+    queryFn: async (): Promise<BillDetail | null> => {
+      const { data, error } = await supabase
+        .from('bills')
+        .select('*, categories(name, color)')
+        .eq('id', billId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export type HistoryRow = Database['public']['Tables']['history']['Row'];
+
+// A bill's history, newest first.
+export function useBillHistory(userId: string, billId: string) {
+  return useQuery({
+    queryKey: keys.billHistory(userId, billId),
+    queryFn: async (): Promise<HistoryRow[]> => {
+      const { data, error } = await supabase
+        .from('history')
+        .select('*')
+        .eq('bill_id', billId)
+        .order('id', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Every archived bill the person can see (both scopes), by name.
+export function useArchivedBills(userId: string) {
+  return useQuery({
+    queryKey: keys.archivedBills(userId),
+    queryFn: async (): Promise<BillDetail[]> => {
+      const { data, error } = await supabase
+        .from('bills')
+        .select('*, categories(name, color)')
+        .not('archived_at', 'is', null)
+        .order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 }
 

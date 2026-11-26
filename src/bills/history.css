@@ -1,0 +1,85 @@
+/* Edit bill: History timeline and archive. */
+.history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-item:last-child {
+  border-bottom: 0;
+}
+
+.history-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.history-dot.pay {
+  background: var(--sage);
+}
+
+.history-dot.change {
+  background: #cfc6ee;
+}
+
+.history-text {
+  overflow-wrap: anywhere;
+}
+
+.history-meta {
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.history-empty,
+.archived-note {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+}
+
+.edit-archive {
+  margin: var(--space-6) 0 calc(var(--space-6) + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+/* The question gets its own centred line above Archive and Cancel. */
+.edit-archive .pay-confirm {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.edit-archive .pay-confirm span {
+  flex: 1 0 100%;
+  text-align: center;
+}
+
+.edit-archive-button {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.archived-section .row {
+  align-items: center;
+}
+
+.archived-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}

@@ -7,9 +7,11 @@ import { useSession } from './auth/useSession';
 import { errorMessage } from './lib/errors';
 import { supabase } from './lib/supabase';
 import { useMyHousehold, useMyInvites, useProfile } from './lib/queries';
+import EditBill from './bills/EditBill';
 import NewBill from './bills/NewBill';
 import Home from './home/Home';
 import { Placeholder } from './Pages';
+import ArchivedBills from './settings/ArchivedBills';
 import InviteBanner from './settings/InviteBanner';
 import OfflineBanner from './ui/OfflineBanner';
 
@@ -97,10 +99,10 @@ function Gate({ userId }: { userId: string }) {
     <Routes>
       <Route path="/" element={<Home userId={userId} />} />
       <Route path="/bills/new" element={<NewBill userId={userId} />} />
-      <Route path="/bills/:id" element={<Placeholder title="Bill" />} />
+      <Route path="/bills/:id" element={<EditBill userId={userId} />} />
       <Route path="/settings" element={<Placeholder title="Settings" />} />
       <Route path="/settings/household" element={<Placeholder title="Household" back="/settings" />} />
-      <Route path="/settings/archived" element={<Placeholder title="Archived bills" back="/settings" />} />
+      <Route path="/settings/archived" element={<ArchivedBills userId={userId} />} />
       <Route path="/settings/delete-account" element={<Placeholder title="Delete account" back="/settings" />} />
       <Route path="*" element={<Placeholder title="Not found" />} />
     </Routes>
