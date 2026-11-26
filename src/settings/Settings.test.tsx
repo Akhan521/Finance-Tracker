@@ -10,6 +10,9 @@ const m = vi.hoisted(() => ({
   household: null as unknown,
   update: vi.fn(),
   signOut: vi.fn(),
+  names: [{ profile_id: 'u1' }, { profile_id: 'u2' }] as unknown[],
+  create: vi.fn(),
+  leave: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: { auth: { signOut: m.signOut } } }));
@@ -17,6 +20,9 @@ vi.mock('../lib/queries', () => ({
   useProfile: () => ({ data: m.profile, isPending: !m.profile, isError: false, ...m.profileState }),
   useUpdateProfile: () => ({ mutateAsync: m.update }),
   useMyHousehold: () => ({ data: m.household }),
+  useHouseholdNames: (_u: string, enabled: boolean) => ({ data: enabled ? m.names : undefined }),
+  useCreateHousehold: () => ({ mutateAsync: m.create }),
+  useLeaveHousehold: () => ({ mutateAsync: m.leave }),
 }));
 
 import Settings from './Settings';
@@ -47,9 +53,15 @@ beforeEach(() => {
   m.profileState = {};
   m.household = withHousehold;
   m.update.mockReset().mockResolvedValue(undefined);
+  m.names = [{ profile_id: 'u1' }, { profile_id: 'u2' }];
+  m.create.mockReset().mockResolvedValue(undefined);
+  m.leave.mockReset().mockResolvedValue(undefined);
   m.signOut.mockReset().mockResolvedValue({ error: null });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('Settings', () => {
   test('top bar and sections', () => {
@@ -272,6 +284,149 @@ describe('Settings', () => {
     const dialog = screen.getByRole('dialog');
     expect((within(dialog).getByRole('textbox', { name: 'Your name' }) as HTMLInputElement).value).toBe('');
     expect((within(dialog).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  describe('create household', () => {
+    beforeEach(() => {
+      m.household = null;
+    });
+
+    test('is hidden with a household', () => {
+      m.household = withHousehold;
+      wrap();
+      expect(screen.queryByRole('button', { name: /Create household/ })).toBeNull();
+    });
+
+    test('sends the trimmed name and the device zone, guarded while invalid or saving', async () => {
+      vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+        timeZone: 'America/Los_Angeles',
+      } as Intl.ResolvedDateTimeFormatOptions);
+      let finish: () => void = () => {};
+      m.create.mockReturnValue(new Promise<void>((r) => (finish = r)));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: /Create household/ }));
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('Time zone: America/Los_Angeles')).toBeTruthy();
+      expect(within(dialog).getByText('Bills in this household follow this time zone.')).toBeTruthy();
+      const input = within(dialog).getByRole('textbox', { name: 'Household name' });
+      const create = within(dialog).getByRole('button', { name: 'Create' }) as HTMLButtonElement;
+      expect(create.disabled).toBe(true);
+      await u.type(input, 'x'.repeat(41));
+      expect(create.disabled).toBe(true);
+      await u.clear(input);
+      await u.type(input, '  The Khans ');
+      expect(create.disabled).toBe(false);
+      await u.click(create);
+      await u.click(create);
+      expect(m.create).toHaveBeenCalledTimes(1);
+      expect(m.create).toHaveBeenCalledWith({ name: 'The Khans', timeZone: 'America/Los_Angeles' });
+      expect(create.disabled).toBe(true);
+      finish();
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    });
+
+    test('a throwing Intl falls back to the profile zone', async () => {
+      vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(() => {
+        throw new Error('no intl');
+      });
+      m.profile = { ...base, time_zone: 'Europe/Paris' };
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: /Create household/ }));
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('Time zone: Europe/Paris')).toBeTruthy();
+      await u.type(within(dialog).getByRole('textbox', { name: 'Household name' }), 'Home');
+      await u.click(within(dialog).getByRole('button', { name: 'Create' }));
+      expect(m.create).toHaveBeenCalledWith({ name: 'Home', timeZone: 'Europe/Paris' });
+    });
+
+    test('bad_time_zone maps to its copy', async () => {
+      m.create.mockRejectedValue(new Error('bad_time_zone'));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: /Create household/ }));
+      const dialog = screen.getByRole('dialog');
+      await u.type(within(dialog).getByRole('textbox', { name: 'Household name' }), 'Home');
+      await u.click(within(dialog).getByRole('button', { name: 'Create' }));
+      await waitFor(() => expect(within(dialog).getByRole('alert').textContent).toBe("That time zone isn't recognised."));
+    });
+
+    test('an error is calm and keeps the sheet open', async () => {
+      m.create.mockRejectedValue(new Error('already_in_household'));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: /Create household/ }));
+      const dialog = screen.getByRole('dialog');
+      await u.type(within(dialog).getByRole('textbox', { name: 'Household name' }), 'Home');
+      await u.click(within(dialog).getByRole('button', { name: 'Create' }));
+      await waitFor(() => expect(within(dialog).getByRole('alert')).toBeTruthy());
+      expect(within(dialog).getByRole('alert').textContent).not.toMatch(/already_in_household/);
+    });
+  });
+
+  describe('leave household', () => {
+    test('asks inline first with focus on Cancel, and Cancel returns focus', async () => {
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: 'Leave household' }));
+      expect(m.leave).not.toHaveBeenCalled();
+      expect(screen.getByText(/Leave The Khans\?/)).toBeTruthy();
+      expect(screen.getByText(/You'll lose access to its bills right away\./)).toBeTruthy();
+      const cancel = screen.getByRole('button', { name: 'Cancel' });
+      expect(document.activeElement).toBe(cancel);
+      await u.click(cancel);
+      expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Leave household' }));
+    });
+
+    test('confirming leaves with the household id', async () => {
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: 'Leave household' }));
+      await u.click(screen.getByRole('button', { name: 'Leave' }));
+      expect(m.leave).toHaveBeenCalledWith('h1');
+    });
+
+    test('a successful leave moves focus to Create household once the household is gone', async () => {
+      const u = userEvent.setup();
+      const view = wrap();
+      await u.click(screen.getByRole('button', { name: 'Leave household' }));
+      await u.click(screen.getByRole('button', { name: 'Leave' }));
+      m.household = null;
+      view.rerender(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Settings userId="u1" />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /Create household/ })));
+    });
+
+    test('last_owner shows the mapped copy and keeps the household', async () => {
+      m.leave.mockRejectedValue(new Error('last_owner'));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: 'Leave household' }));
+      await u.click(screen.getByRole('button', { name: 'Leave' }));
+      await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Make someone else an owner first.'));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Leave household' }));
+      expect(screen.getByRole('link', { name: /Household/ }).textContent).toContain('The Khans');
+    });
+
+    test('the sole member sees a note and no Leave button', () => {
+      m.names = [{ profile_id: 'u1' }];
+      wrap();
+      expect(screen.getByText("You're the only member. You can delete the household from the Household screen.")).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Leave household' })).toBeNull();
+    });
+
+    test('is hidden without a household', () => {
+      m.household = null;
+      wrap();
+      expect(screen.queryByRole('button', { name: 'Leave household' })).toBeNull();
+    });
   });
 
   test('shows no counts', () => {

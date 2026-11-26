@@ -245,6 +245,55 @@ export function useEntryPayments(userId: string, entryId: string) {
   });
 }
 
+// Everything that depends on belonging to a household, by cache prefix.
+const HOUSEHOLD_SCOPED = [
+  'entries', 'entry', 'entry-payments', 'has-bills', 'bill', 'bill-history',
+  'archived-bills', 'categories', 'household-names',
+] as const;
+
+export function useCreateHousehold(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, timeZone }: { name: string; timeZone: string }) => {
+      const { error } = await supabase.rpc('create_household', { p_name: name, p_time_zone: timeZone });
+      if (error) throw error;
+    },
+    // Already in a household (another tab, or a stale screen): refresh so Create goes away.
+    onError: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: keys.household(userId) }),
+        qc.invalidateQueries({ queryKey: keys.profile(userId) }),
+      ]),
+    onSuccess: () =>
+      Promise.all(
+        ['household', 'profile', ...HOUSEHOLD_SCOPED].map((k) => qc.invalidateQueries({ queryKey: [k, userId] })),
+      ),
+  });
+}
+
+// Leaving deletes my own membership row. A trigger refuses if I'm the last owner.
+export function useLeaveHousehold(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (householdId: string) => {
+      const { error } = await supabase
+        .from('memberships')
+        .delete()
+        .eq('profile_id', userId)
+        .eq('household_id', householdId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Drop (not just refresh) so no household data can flash.
+      for (const k of HOUSEHOLD_SCOPED) qc.removeQueries({ queryKey: [k, userId] });
+      return Promise.all([
+        qc.invalidateQueries({ queryKey: keys.household(userId) }),
+        qc.invalidateQueries({ queryKey: keys.profile(userId) }),
+      ]);
+    },
+  });
+}
+
 // Names of the household's members, for "who paid". Only fetched when needed.
 export function useHouseholdNames(userId: string, enabled: boolean) {
   return useQuery({

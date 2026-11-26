@@ -1,13 +1,22 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { useSignOut } from '../auth/useSignOut';
 import { errorMessage } from '../lib/errors';
-import { useMyHousehold, useProfile, useUpdateProfile, type ProfileChanges } from '../lib/queries';
+import {
+  useCreateHousehold,
+  useHouseholdNames,
+  useLeaveHousehold,
+  useMyHousehold,
+  useProfile,
+  useUpdateProfile,
+  type ProfileChanges,
+} from '../lib/queries';
 import GroupedList from '../ui/GroupedList';
 import Picker from '../ui/Picker';
 import Sheet from '../ui/Sheet';
 import Switch from '../ui/Switch';
 import '../bills/bills.css';
+import '../bills/pay.css';
 import '../Pages.css';
 import './settings.css';
 
@@ -25,6 +34,17 @@ const KEEP_OPTIONS = [
 
 type Field = keyof ProfileChanges;
 
+// The device's zone, else the profile's, else UTC.
+function deviceZone(profileZone: string | undefined): string {
+  try {
+    const z = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (z) return z;
+  } catch {
+    // fall through to the profile's zone
+  }
+  return profileZone || 'UTC';
+}
+
 function nameProblem(name: string): string {
   const t = name.trim();
   if (!t) return 'Please enter your name.';
@@ -37,6 +57,33 @@ export default function Settings({ userId }: { userId: string }) {
   const household = useMyHousehold(userId);
   const update = useUpdateProfile(userId);
   const signOut = useSignOut();
+  const hhId = household.data?.households?.id ?? null;
+  const names = useHouseholdNames(userId, !!hhId);
+  const create = useCreateHousehold(userId);
+  const leave = useLeaveHousehold(userId);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [hhName, setHhName] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [createBusy, setCreateBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
+  const createGuard = useRef(false);
+  const returnFocus = useRef<'leave' | 'create' | null>(null);
+  const createRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const leaveRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) {
+      cancelRef.current?.focus();
+    } else if (returnFocus.current === 'leave') {
+      leaveRef.current?.focus();
+      returnFocus.current = null;
+    } else if (returnFocus.current === 'create' && !hhId) {
+      createRef.current?.focus();
+      returnFocus.current = null;
+    }
+  }, [confirming, hhId]);
   // Values shown while a save is in flight; dropped when it ends either way.
   const [pending, setPending] = useState<Partial<Record<Field, unknown>>>({});
   // Each field keeps its own last error until that field saves successfully.
@@ -48,6 +95,7 @@ export default function Settings({ userId }: { userId: string }) {
   const [nameError, setNameError] = useState('');
   const [nameBusy, setNameBusy] = useState(false);
   const p = profile.data;
+  const zone = deviceZone(p?.time_zone);
 
   async function save(field: Field, value: ProfileChanges[Field]) {
     if (field in pending) return; // the control is disabled while saving
@@ -74,6 +122,41 @@ export default function Settings({ userId }: { userId: string }) {
     } catch {
       setAccountError("Couldn't sign out. Please try again.");
       setSigningOut(false);
+    }
+  }
+
+  async function doCreate(e: FormEvent) {
+    e.preventDefault();
+    const trimmedName = hhName.trim();
+    if (createGuard.current || !trimmedName || trimmedName.length > 40) return;
+    createGuard.current = true;
+    setCreateBusy(true);
+    setCreateError('');
+    try {
+      await create.mutateAsync({ name: trimmedName, timeZone: zone });
+      setCreateOpen(false);
+    } catch (err) {
+      setCreateError(errorMessage(err));
+    } finally {
+      createGuard.current = false;
+      setCreateBusy(false);
+    }
+  }
+
+  async function doLeave() {
+    if (leaveBusy || !hhId) return;
+    setLeaveBusy(true);
+    setLeaveError('');
+    try {
+      await leave.mutateAsync(hhId);
+      returnFocus.current = 'create';
+      setConfirming(false);
+    } catch (err) {
+      setLeaveError(errorMessage(err));
+      returnFocus.current = 'leave';
+      setConfirming(false);
+    } finally {
+      setLeaveBusy(false);
     }
   }
 
@@ -193,6 +276,20 @@ export default function Settings({ userId }: { userId: string }) {
             <span className="row-value">{hh.name} ›</span>
           </Link>
         )}
+        {!hh && (
+          <button
+            ref={createRef}
+            type="button"
+            className="row row-button"
+            onClick={() => {
+              setHhName('');
+              setCreateError('');
+              setCreateOpen(true);
+            }}
+          >
+            Create household
+          </button>
+        )}
       </GroupedList>
 
       <GroupedList label="Account">
@@ -214,6 +311,49 @@ export default function Settings({ userId }: { userId: string }) {
         <button type="button" className="row row-button" disabled={signingOut} onClick={() => void doSignOut('global')}>
           Sign out of all devices
         </button>
+        {hh && names.data && names.data.length > 1 && !confirming && (
+          <button
+            ref={leaveRef}
+            type="button"
+            className="row row-button"
+            onClick={() => {
+              setLeaveError('');
+              setConfirming(true);
+            }}
+          >
+            Leave household
+          </button>
+        )}
+        {hh && names.data && names.data.length > 1 && confirming && (
+          <div className="pay-confirm" role="group" aria-label={`Leave ${hh.name}?`}>
+            <span>Leave {hh.name}? You'll lose access to its bills right away.</span>
+            <button type="button" className="pay-link-button danger" disabled={leaveBusy} onClick={() => void doLeave()}>
+              Leave
+            </button>
+            <button
+              ref={cancelRef}
+              type="button"
+              className="pay-link-button"
+              disabled={leaveBusy}
+              onClick={() => {
+                returnFocus.current = 'leave';
+                setConfirming(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        {leaveError && (
+          <p role="alert" className="save-error">
+            {leaveError}
+          </p>
+        )}
+        {hh && names.data && names.data.length === 1 && (
+          <p className="page-quiet settings-note">
+            You're the only member. You can delete the household from the Household screen.
+          </p>
+        )}
         <Link to="/settings/delete-account" className="row row-button settings-quiet">
           Delete account
         </Link>
@@ -223,6 +363,38 @@ export default function Settings({ userId }: { userId: string }) {
           {accountError}
         </p>
       )}
+
+      <Sheet open={createOpen} onClose={() => !createBusy && setCreateOpen(false)} title="Create household">
+        <form onSubmit={(e) => void doCreate(e)}>
+          <label className="field">
+            <input
+              className="field-input"
+              type="text"
+              aria-label="Household name"
+              placeholder="Household name"
+              value={hhName}
+              onChange={(e) => setHhName(e.target.value)}
+            />
+          </label>
+          {hhName.trim().length > 40 && (
+            <p className="page-quiet">Please keep the name to 40 characters or fewer.</p>
+          )}
+          <p className="settings-note">Time zone: {zone}</p>
+          <p className="settings-note">Bills in this household follow this time zone.</p>
+          {createError && (
+            <p role="alert" className="save-error">
+              {createError}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="sheet-done"
+            disabled={createBusy || !hhName.trim() || hhName.trim().length > 40}
+          >
+            Create
+          </button>
+        </form>
+      </Sheet>
 
       <Sheet open={nameOpen} onClose={() => setNameOpen(false)} title="Your name">
         <form onSubmit={(e) => void saveName(e)}>
