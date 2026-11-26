@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { formatCents, parseCents } from './money';
+import { centsToDecimal, formatCents, parseCents } from './money';
 
 test.each([
   ['1980', 198000],
@@ -45,4 +45,18 @@ test('formatCents', () => {
   expect(formatCents(0)).toBe('$0');
   expect(formatCents(99999999)).toBe('$999,999.99');
   expect(formatCents(100000000)).toBe('$1,000,000');
+});
+
+test.each([
+  [198000, '1980.00'],
+  [9240, '92.40'],
+  [5, '0.05'],
+  [0, '0.00'],
+  [99999999, '999999.99'],
+])('centsToDecimal(%s) is %s', (cents, out) => {
+  expect(centsToDecimal(cents)).toBe(out);
+});
+
+test.each([-5, 1.5, NaN])('centsToDecimal refuses %s', (cents) => {
+  expect(() => centsToDecimal(cents)).toThrow();
 });

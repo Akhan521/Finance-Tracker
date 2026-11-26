@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { useSignOut } from '../auth/useSignOut';
+import { endOfMonth, todayIn } from '../lib/calendar';
+import { toCsv } from '../lib/csv';
+import { buildExportRows } from '../lib/export';
 import { errorMessage } from '../lib/errors';
 import {
   useCreateHousehold,
@@ -68,6 +71,9 @@ export default function Settings({ userId }: { userId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leaveError, setLeaveError] = useState('');
+  const exportGuard = useRef(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const createGuard = useRef(false);
   const returnFocus = useRef<'leave' | 'create' | null>(null);
   const createRef = useRef<HTMLButtonElement>(null);
@@ -122,6 +128,30 @@ export default function Settings({ userId }: { userId: string }) {
     } catch {
       setAccountError("Couldn't sign out. Please try again.");
       setSigningOut(false);
+    }
+  }
+
+  async function doExport() {
+    if (exportGuard.current || !p) return;
+    exportGuard.current = true;
+    setExporting(true);
+    setExportError('');
+    try {
+      const today = todayIn(p.time_zone);
+      const csv = toCsv(await buildExportRows(userId, endOfMonth(today)));
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bills-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url));
+    } catch {
+      setExportError("Couldn't prepare your export. Please try again.");
+    } finally {
+      exportGuard.current = false;
+      setExporting(false);
     }
   }
 
@@ -248,6 +278,22 @@ export default function Settings({ userId }: { userId: string }) {
       )}
 
       <GroupedList label="Your data">
+        <button
+          type="button"
+          className="row row-button"
+          disabled={exporting || !p}
+          aria-busy={exporting}
+          aria-describedby="export-caption"
+          onClick={() => void doExport()}
+        >
+          <span>
+            Export to spreadsheet
+            <small id="export-caption" className="row-caption">
+              CSV of your bills and payments
+            </small>
+          </span>
+          <span className="row-value">{exporting ? 'Preparing…' : ''}</span>
+        </button>
         <Picker
           label="Keep history for"
           caption="Your personal bills"
@@ -257,6 +303,14 @@ export default function Settings({ userId }: { userId: string }) {
           onChange={(v) => void save('retention_months', v === 'never' ? null : Number(v))}
         />
       </GroupedList>
+      <span role="status" className="visually-hidden">
+        {exporting ? 'Preparing…' : ''}
+      </span>
+      {exportError && (
+        <p role="alert" className="save-error">
+          {exportError}
+        </p>
+      )}
       {errors.retention_months && (
         <p role="alert" className="save-error">
           {errors.retention_months}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatDay, monthGrid, todayIn } from './calendar';
+import { endOfMonth, formatDay, monthGrid, todayIn } from './calendar';
 
 test('Oct 2026 grid starts on Thursday the 1st', () =>
   expect(monthGrid(2026, 10)[0]).toEqual([null, null, null, null, '2026-10-01', '2026-10-02', '2026-10-03']));
@@ -57,4 +57,14 @@ describe('formatDay', () => {
     expect(formatDay('2026-10-18', 'long')).toBe('Sunday, October 18');
     expect(formatDay('2026-10-18', 'date')).toBe('Oct 18');
   });
+});
+
+test.each([
+  ['2024-02-10', '2024-02-29'],
+  ['2025-02-01', '2025-02-28'],
+  ['2026-12-15', '2026-12-31'],
+  ['2026-04-30', '2026-04-30'],
+  ['2026-01-01', '2026-01-31'],
+])('endOfMonth(%s) is %s', (iso, end) => {
+  expect(endOfMonth(iso)).toBe(end);
 });

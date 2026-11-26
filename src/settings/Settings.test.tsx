@@ -13,9 +13,11 @@ const m = vi.hoisted(() => ({
   names: [{ profile_id: 'u1' }, { profile_id: 'u2' }] as unknown[],
   create: vi.fn(),
   leave: vi.fn(),
+  build: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: { auth: { signOut: m.signOut } } }));
+vi.mock('../lib/export', () => ({ buildExportRows: (...a: unknown[]) => m.build(...a) }));
 vi.mock('../lib/queries', () => ({
   useProfile: () => ({ data: m.profile, isPending: !m.profile, isError: false, ...m.profileState }),
   useUpdateProfile: () => ({ mutateAsync: m.update }),
@@ -25,6 +27,7 @@ vi.mock('../lib/queries', () => ({
   useLeaveHousehold: () => ({ mutateAsync: m.leave }),
 }));
 
+import { endOfMonth, todayIn } from '../lib/calendar';
 import Settings from './Settings';
 
 const base = {
@@ -55,6 +58,7 @@ beforeEach(() => {
   m.update.mockReset().mockResolvedValue(undefined);
   m.names = [{ profile_id: 'u1' }, { profile_id: 'u2' }];
   m.create.mockReset().mockResolvedValue(undefined);
+  m.build.mockReset().mockResolvedValue([]);
   m.leave.mockReset().mockResolvedValue(undefined);
   m.signOut.mockReset().mockResolvedValue({ error: null });
 });
@@ -426,6 +430,92 @@ describe('Settings', () => {
       m.household = null;
       wrap();
       expect(screen.queryByRole('button', { name: 'Leave household' })).toBeNull();
+    });
+  });
+
+  describe('export', () => {
+    let blobs: Blob[];
+    let clicked: { download: string; href: string }[];
+    const revoke = vi.fn();
+    beforeEach(() => {
+      blobs = [];
+      clicked = [];
+      revoke.mockReset();
+      URL.createObjectURL = (b: Blob | MediaSource) => {
+        blobs.push(b as Blob);
+        return 'blob:test';
+      };
+      URL.revokeObjectURL = revoke;
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push({ download: this.download, href: this.href });
+      });
+      m.profile = { ...base, time_zone: 'America/Los_Angeles' };
+    });
+    const readText = (b: Blob) =>
+      new Promise<string>((res) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result));
+        r.readAsText(b);
+      });
+
+    const readBytes = (b: Blob) =>
+      new Promise<ArrayBuffer>((res) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as ArrayBuffer);
+        r.readAsArrayBuffer(b);
+      });
+
+    test('sits above Keep history with its caption and downloads a dated CSV with a BOM and header', async () => {
+      m.build.mockResolvedValue([
+        { bill: 'Rent', scope: 'Household', category: 'Housing', dueDate: '2026-10-01', status: 'paid', expected: '1980.00', paymentAmount: '1980.00', paidOn: '2026-10-01', paidBy: 'Mom' },
+      ]);
+      const u = userEvent.setup();
+      wrap();
+      const exportRow = screen.getByRole('button', { name: /Export to spreadsheet/ });
+      expect(exportRow.textContent).toContain('CSV of your bills and payments');
+      const keep = screen.getByRole('button', { name: /Keep history for/ });
+      expect(exportRow.compareDocumentPosition(keep) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await u.click(exportRow);
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(m.build).toHaveBeenCalledWith('u1', endOfMonth(todayIn('America/Los_Angeles')));
+      expect(clicked[0].download).toBe(`bills-${todayIn('America/Los_Angeles')}.csv`);
+      expect(blobs[0].type).toBe('text/csv;charset=utf-8');
+      const text = await readText(blobs[0]);
+      // Reading as text strips the BOM, so check the raw bytes too.
+      const bytes = new Uint8Array(await readBytes(blobs[0]));
+      expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+      expect(text.startsWith('"Bill","Household or mine"')).toBe(true);
+      expect(text).toContain('"Rent","Household"');
+      await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:test'));
+    });
+
+    test('shows Preparing, disables the row, and ignores a second tap', async () => {
+      let finish: (v: unknown[]) => void = () => {};
+      m.build.mockReturnValue(new Promise<unknown[]>((r) => (finish = r)));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: /Export to spreadsheet/ }));
+      const row = screen.getByRole('button', { name: /Export to spreadsheet/ }) as HTMLButtonElement;
+      expect(row.textContent).toContain('Preparing…');
+      expect(screen.getByRole('status').textContent).toBe('Preparing…');
+      expect(row.disabled).toBe(true);
+      await u.click(row);
+      expect(m.build).toHaveBeenCalledTimes(1);
+      finish([]);
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect((screen.getByRole('button', { name: /Export to spreadsheet/ }) as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    test('a failure shows calm copy and downloads nothing', async () => {
+      m.build.mockRejectedValue(new Error('raw server text'));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: /Export to spreadsheet/ }));
+      await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+      expect(screen.getByRole('alert').textContent).toBe("Couldn't prepare your export. Please try again.");
+      expect(blobs).toHaveLength(0);
+      expect(clicked).toHaveLength(0);
+      expect((screen.getByRole('button', { name: /Export to spreadsheet/ }) as HTMLButtonElement).disabled).toBe(false);
     });
   });
 

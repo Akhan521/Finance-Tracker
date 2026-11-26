@@ -28,3 +28,9 @@ export function formatCents(cents: number): string {
   const grouped = String(dollars).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `${sign}$${grouped}${rem === 0 ? '' : `.${String(rem).padStart(2, '0')}`}`;
 }
+
+/** Integer cents as a plain decimal for spreadsheets: 198000 is '1980.00'. Refuses negatives and non-integers. */
+export function centsToDecimal(cents: number): string {
+  if (!Number.isSafeInteger(cents) || cents < 0) throw new Error('centsToDecimal needs a non-negative integer');
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+}

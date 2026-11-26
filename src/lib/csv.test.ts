@@ -23,15 +23,15 @@ test('csv neutralizes formulas and quotes commas, quotes and newlines', () => {
   expect(out).toContain('"Al ""Mo"""');
 });
 
-test('header line is exact, with CRLF endings, quoted fields and no BOM', () => {
+test('header line is exact, with CRLF endings, quoted fields, after a BOM', () => {
   const out = toCsv([exportRow()]);
-  const [header, data, end] = out.split('\r\n');
+  expect(out.charCodeAt(0)).toBe(0xfeff);
+  const [header, data, end] = out.slice(1).split('\r\n');
   expect(header).toBe(
     '"Bill","Household or mine","Category","Due date","Status","Expected","Payment amount","Paid on","Paid by"',
   );
   expect(data).toBe('"Rent","Household","Housing","2026-10-01","paid","1980.00","1980.00","2026-10-01","Al"');
   expect(end).toBe('');
-  expect(out.charCodeAt(0)).not.toBe(0xfeff);
   expect(out).not.toMatch(/(?<!\r)\n/);
 });
 
@@ -39,7 +39,7 @@ test('no rows gives just the header', () => {
   expect(toCsv([]).split('\r\n')).toHaveLength(2);
 });
 
-test.each(['=', '+', '-', '@', '\t', '\r'])('a cell starting with %j is prefixed with an apostrophe', (ch) => {
+test.each(['=', '+', '-', '@', '\t', '\r', '\n'])('a cell starting with %j is prefixed with an apostrophe', (ch) => {
   const out = toCsv([exportRow({ bill: `${ch}x` })]);
   expect(out).toContain(`"'${ch}x"`);
 });

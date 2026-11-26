@@ -16,7 +16,7 @@ const HEADER = ['Bill', 'Household or mine', 'Category', 'Due date', 'Status', '
 
 /** Quote per RFC 4180, after defusing cells a spreadsheet would run as a formula. */
 function cell(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  const safe = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
   return `"${safe.split('"').join('""')}"`;
 }
 
@@ -25,5 +25,6 @@ export function toCsv(rows: ExportRow[]): string {
     HEADER,
     ...rows.map((r) => [r.bill, r.scope, r.category, r.dueDate, r.status, r.expected, r.paymentAmount, r.paidOn, r.paidBy]),
   ];
-  return lines.map((l) => l.map(cell).join(',')).join('\r\n') + '\r\n';
+  // The BOM makes Excel read accented names as UTF-8.
+  return '\uFEFF' + lines.map((l) => l.map(cell).join(',')).join('\r\n') + '\r\n';
 }

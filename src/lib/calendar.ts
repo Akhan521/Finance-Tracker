@@ -42,3 +42,10 @@ export function formatDay(iso: string, style: 'short' | 'long' | 'date' = 'short
     day: 'numeric',
   });
 }
+
+/** The last day of the month an ISO date falls in ('2026-02-10' gives '2026-02-28'). UTC maths, no device zone. */
+export function endOfMonth(iso: string): string {
+  const [y, m] = iso.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${iso.slice(0, 8)}${String(last).padStart(2, '0')}`;
+}
