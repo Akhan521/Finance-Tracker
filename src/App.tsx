@@ -12,6 +12,7 @@ import NewBill from './bills/NewBill';
 import Home from './home/Home';
 import { Placeholder } from './Pages';
 import ArchivedBills from './settings/ArchivedBills';
+import HouseholdScreen from './settings/HouseholdScreen';
 import InviteBanner from './settings/InviteBanner';
 import Settings from './settings/Settings';
 import OfflineBanner from './ui/OfflineBanner';
@@ -102,7 +103,7 @@ function Gate({ userId }: { userId: string }) {
       <Route path="/bills/new" element={<NewBill userId={userId} />} />
       <Route path="/bills/:id" element={<EditBill userId={userId} />} />
       <Route path="/settings" element={<Settings userId={userId} />} />
-      <Route path="/settings/household" element={<Placeholder title="Household" back="/settings" />} />
+      <Route path="/settings/household" element={<HouseholdScreen userId={userId} />} />
       <Route path="/settings/archived" element={<ArchivedBills userId={userId} />} />
       <Route path="/settings/delete-account" element={<Placeholder title="Delete account" back="/settings" />} />
       <Route path="*" element={<Placeholder title="Not found" />} />

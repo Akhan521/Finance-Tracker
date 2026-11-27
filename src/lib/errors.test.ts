@@ -13,7 +13,7 @@ for (const sql of Object.values(migrations)) {
   for (const m of sql.matchAll(/raise\s+exception\s+'([a-z_]+)'/gi)) raised.add(m[1]);
 }
 
-const EXTRA = ['could_not_delete', 'unauthorized'];
+const EXTRA = ['could_not_delete', 'unauthorized', 'no_access'];
 const GENERIC = 'Something went wrong. Please try again.';
 
 describe('errorMessage', () => {

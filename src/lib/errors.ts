@@ -11,6 +11,7 @@ const MESSAGES: Record<string, string> = {
   invite_not_found: "That invite isn't available any more.",
   invite_not_pending: 'That invite has already been used or cancelled.',
   last_owner: 'Make someone else an owner first.',
+  no_access: "You can't do that anymore. Refresh and try again.",
   not_credit_card: 'That only applies to credit card bills.',
   not_signed_in: 'Please sign in again.',
   not_sole_owner: 'Only the one owner of a household can delete it.',

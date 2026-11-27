@@ -19,6 +19,7 @@ export const keys = {
   billHistory: (userId: string, billId: string) => ['bill-history', userId, billId] as const,
   archivedBills: (userId: string) => ['archived-bills', userId] as const,
   householdNames: (userId: string) => ['household-names', userId] as const,
+  members: (userId: string) => ['members', userId] as const,
   hasBills: (userId: string, view: View, householdId: string | null) =>
     ['has-bills', userId, view, householdId] as const,
 };
@@ -248,7 +249,7 @@ export function useEntryPayments(userId: string, entryId: string) {
 // Everything that depends on belonging to a household, by cache prefix.
 const HOUSEHOLD_SCOPED = [
   'entries', 'entry', 'entry-payments', 'has-bills', 'bill', 'bill-history',
-  'archived-bills', 'categories', 'household-names',
+  'archived-bills', 'categories', 'household-names', 'members',
 ] as const;
 
 export function useCreateHousehold(userId: string) {
@@ -291,6 +292,94 @@ export function useLeaveHousehold(userId: string) {
         qc.invalidateQueries({ queryKey: keys.profile(userId) }),
       ]);
     },
+  });
+}
+
+export type Member = { profile_id: string; role: 'owner' | 'member'; display_name: string | null };
+
+// The household's members with their roles and names (unsorted).
+export function useMembers(userId: string) {
+  const householdId = householdIdOf(useMyHousehold(userId).data);
+  return useQuery({
+    queryKey: keys.members(userId),
+    enabled: !!householdId,
+    queryFn: async (): Promise<Member[]> => {
+      const [roles, names] = await Promise.all([
+        supabase.from('memberships').select('profile_id, role').eq('household_id', householdId ?? ''),
+        supabase.rpc('household_names'),
+      ]);
+      if (roles.error) throw roles.error;
+      if (names.error) throw names.error;
+      const nameOf = new Map((names.data ?? []).map((n) => [n.profile_id, n.display_name]));
+      return (roles.data ?? [])
+        .map((r) => ({
+          profile_id: r.profile_id,
+          role: r.role as Member['role'],
+          display_name: nameOf.get(r.profile_id) ?? null,
+        }));
+    },
+  });
+}
+
+function refreshMembers(qc: ReturnType<typeof useQueryClient>, userId: string) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: keys.members(userId) }),
+    qc.invalidateQueries({ queryKey: keys.householdNames(userId) }),
+    qc.invalidateQueries({ queryKey: keys.household(userId) }),
+  ]);
+}
+
+// Owners only (RLS). A trigger refuses to demote the last owner.
+export function useSetRole(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { householdId: string; profileId: string; role: Member['role'] }) => {
+      const { data, error } = await supabase
+        .from('memberships')
+        .update({ role: v.role })
+        .eq('household_id', v.householdId)
+        .eq('profile_id', v.profileId)
+        .select('profile_id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('no_access');
+    },
+    onSuccess: () => refreshMembers(qc, userId),
+  });
+}
+
+// Owners only (RLS). Deletes that one membership. Only the UI keeps you from
+// removing yourself here (RLS allows self-delete; that is Leave).
+export function useRemoveMember(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { householdId: string; profileId: string }) => {
+      const { data, error } = await supabase
+        .from('memberships')
+        .delete()
+        .eq('household_id', v.householdId)
+        .eq('profile_id', v.profileId)
+        .select('profile_id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('no_access');
+    },
+    onSuccess: () => refreshMembers(qc, userId),
+  });
+}
+
+// The household's own history window; owners only (RLS).
+export function useUpdateHousehold(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { householdId: string; retention_months: number | null }) => {
+      const { data, error } = await supabase
+        .from('households')
+        .update({ retention_months: v.retention_months })
+        .eq('id', v.householdId)
+        .select('id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('no_access');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.household(userId) }),
   });
 }
 

@@ -14,6 +14,11 @@
   color: var(--muted);
 }
 
+.group-rows > .settings-note {
+  margin: 0;
+  padding: 14px 0;
+}
+
 .settings-note {
   margin: var(--space-2) 0 0;
   font-size: 13px;

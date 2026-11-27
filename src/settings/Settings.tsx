@@ -7,13 +7,12 @@ import { buildExportRows } from '../lib/export';
 import { errorMessage } from '../lib/errors';
 import {
   useCreateHousehold,
-  useHouseholdNames,
-  useLeaveHousehold,
   useMyHousehold,
   useProfile,
   useUpdateProfile,
   type ProfileChanges,
 } from '../lib/queries';
+import LeaveHousehold from './LeaveHousehold';
 import GroupedList from '../ui/GroupedList';
 import Picker from '../ui/Picker';
 import Sheet from '../ui/Sheet';
@@ -61,35 +60,23 @@ export default function Settings({ userId }: { userId: string }) {
   const update = useUpdateProfile(userId);
   const signOut = useSignOut();
   const hhId = household.data?.households?.id ?? null;
-  const names = useHouseholdNames(userId, !!hhId);
   const create = useCreateHousehold(userId);
-  const leave = useLeaveHousehold(userId);
   const [createOpen, setCreateOpen] = useState(false);
   const [hhName, setHhName] = useState('');
   const [createError, setCreateError] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [leaveBusy, setLeaveBusy] = useState(false);
-  const [leaveError, setLeaveError] = useState('');
   const exportGuard = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const createGuard = useRef(false);
-  const returnFocus = useRef<'leave' | 'create' | null>(null);
+  const returnFocus = useRef(false);
   const createRef = useRef<HTMLButtonElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const leaveRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (confirming) {
-      cancelRef.current?.focus();
-    } else if (returnFocus.current === 'leave') {
-      leaveRef.current?.focus();
-      returnFocus.current = null;
-    } else if (returnFocus.current === 'create' && !hhId) {
+    if (returnFocus.current && !hhId) {
       createRef.current?.focus();
-      returnFocus.current = null;
+      returnFocus.current = false;
     }
-  }, [confirming, hhId]);
+  }, [hhId]);
   // Values shown while a save is in flight; dropped when it ends either way.
   const [pending, setPending] = useState<Partial<Record<Field, unknown>>>({});
   // Each field keeps its own last error until that field saves successfully.
@@ -170,23 +157,6 @@ export default function Settings({ userId }: { userId: string }) {
     } finally {
       createGuard.current = false;
       setCreateBusy(false);
-    }
-  }
-
-  async function doLeave() {
-    if (leaveBusy || !hhId) return;
-    setLeaveBusy(true);
-    setLeaveError('');
-    try {
-      await leave.mutateAsync(hhId);
-      returnFocus.current = 'create';
-      setConfirming(false);
-    } catch (err) {
-      setLeaveError(errorMessage(err));
-      returnFocus.current = 'leave';
-      setConfirming(false);
-    } finally {
-      setLeaveBusy(false);
     }
   }
 
@@ -365,48 +335,15 @@ export default function Settings({ userId }: { userId: string }) {
         <button type="button" className="row row-button" disabled={signingOut} onClick={() => void doSignOut('global')}>
           Sign out of all devices
         </button>
-        {hh && names.data && names.data.length > 1 && !confirming && (
-          <button
-            ref={leaveRef}
-            type="button"
-            className="row row-button"
-            onClick={() => {
-              setLeaveError('');
-              setConfirming(true);
+        {hh && (
+          <LeaveHousehold
+            userId={userId}
+            household={hh}
+            onLeft={() => {
+              returnFocus.current = true;
             }}
-          >
-            Leave household
-          </button>
-        )}
-        {hh && names.data && names.data.length > 1 && confirming && (
-          <div className="pay-confirm" role="group" aria-label={`Leave ${hh.name}?`}>
-            <span>Leave {hh.name}? You'll lose access to its bills right away.</span>
-            <button type="button" className="pay-link-button danger" disabled={leaveBusy} onClick={() => void doLeave()}>
-              Leave
-            </button>
-            <button
-              ref={cancelRef}
-              type="button"
-              className="pay-link-button"
-              disabled={leaveBusy}
-              onClick={() => {
-                returnFocus.current = 'leave';
-                setConfirming(false);
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-        {leaveError && (
-          <p role="alert" className="save-error">
-            {leaveError}
-          </p>
-        )}
-        {hh && names.data && names.data.length === 1 && (
-          <p className="page-quiet settings-note">
-            You're the only member. You can delete the household from the Household screen.
-          </p>
+            soleNote="You're the only member. You can delete the household from the Household screen."
+          />
         )}
         <Link to="/settings/delete-account" className="row row-button settings-quiet">
           Delete account
