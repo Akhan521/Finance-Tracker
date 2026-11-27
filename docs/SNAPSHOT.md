@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-25 (end of session 18: edit bill and history, the donut, and settings with create/leave household and CSV export done)
+**Last updated:** 2026-11-26 (end of session 19: the Household screen, invites by email, and deleting a household done)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is under way: Tasks 10 to 17 and V4's local sign-in are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is under way: Tasks 10 to 18 and V4's local sign-in are done. Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -53,7 +53,8 @@ not money. Core needs:
   Task 11 (app shell, theme, first run) are done, and so are Tasks 12
   (home calendar), 13 (day list and pay sheet), 14 (new bill), 15 (edit
   bill, history, archive), 16 (category donut), and 17 (settings, create and
-  leave household, CSV export). V4's
+  leave household, CSV export), and 18 (household screen, invites by email,
+  delete household). V4's
   iPhone half (PWA,
   deploy, home-screen check) waits until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
@@ -507,6 +508,38 @@ not money. Core needs:
     after each check.
   - **398 unit tests and 163 db tests pass.** Five commits, plus this
     snapshot.
+- **Session 19 (2026-11-26):**
+  - **The daily health Action stayed green** (11/25 and 11/26 runs).
+  - **Task 18 in three commits:**
+    - **18a, the Household screen** (`src/settings/HouseholdScreen.tsx`,
+      `LeaveHousehold.tsx`): members with Owner/Member labels and "(you)";
+      owners tap another member to make them owner/member or remove them
+      (inline confirm); the household's Keep history for (owners only);
+      Leave shared with Settings. Writes that RLS silently filters now
+      raise `no_access` ("You can't do that anymore. Refresh and try
+      again."); checked live by demoting the owner behind the app's back.
+    - **18b, invites by email** (`supabase/functions/invite/`,
+      `_shared/smtp.ts`): the caller is identified only by its token, the
+      insert runs as the caller (RLS and the trigger decide), one email per
+      invite, a failed send cancels the invite, nothing reveals whether an
+      address has an account, and the function never loads the secret key.
+      An opus security review found that the address check let address-list
+      syntax through (nodemailer would deliver elsewhere and bypass
+      already_invited); it is now a strict pattern in the function and the
+      app. Local email goes to Mailpit through a plaintext mode that needs an
+      exact local host AND a local `SUPABASE_URL` and sends no credentials;
+      production SMTP options are pinned by a test. invite's `deno.lock` was
+      hand-merged (no Deno here); its hashes were checked against npm.
+    - **18c, deleting a household:** sole owner only; warning, "Export first"
+      (shared `useCsvExport`), the household name typed exactly to enable
+      Delete; caches removed and straight to Settings ("Household deleted.").
+      A new contrast-tested `--danger` colour marks every destructive link,
+      and disabled link buttons now look disabled.
+  - **Every piece was tried against the local stack at iPhone width:** roles
+    and removal, invites read back from Mailpit, a throwaway household
+    deleted with its cascade checked. Test data was restored each time.
+  - **476 unit tests and 209 db tests pass.** Three commits, plus this
+    snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -864,12 +897,29 @@ and the invite details.
 - **Deep category shades are computed** (lightness down 13 points), so custom
   categories get a paid shade too.
 - **Carry-forwards:**
-  - Task 18: the Household screen (members, invites, owner actions, "Keep
-    history for" for the household, Delete household for a sole member);
-    Settings' sole-member note points there.
   - The Archived bills title sits slightly right of centre (empty right slot
     in the shared top bar); polish pass.
   - `OfflineBanner` still needs a persistent live region.
+
+**New calls from session 19 (not yet reviewed by Aamir):**
+- **Deleting a household needs its name typed exactly** (beyond the plan's
+  "warns, offers export"), because it erases everything for good.
+- **Owners can also demote another owner ("Make member");** the database
+  still keeps at least one owner.
+- **Cancelling an invite has no confirm;** re-inviting undoes it.
+- **Writes check that a row was really changed** (`no_access`) for roles,
+  removal, household settings and invite cancel.
+- **Open question for Aamir (not decided):** the 20-invites-a-day cap is per
+  household, so a sole owner could delete and recreate a household to get
+  another 20. A per-inviter cap that survives household deletion would close
+  it (the sign-up gate already limits who could try). Options: a new
+  decision now, the polish pass, or leave it.
+- **Carry-forwards:**
+  - Hardening pass: earlier writes (edit bill, archive/restore, card
+    figures) should get the same zero-rows `no_access` check.
+  - First deploy (Task 20): set the invite function's secrets (`APP_URL`,
+    SMTP, `MAIL_FROM_NAME`, `ALLOWED_ORIGIN`), regenerate `deno.lock` with a
+    real Deno if one is available, and confirm `verify_jwt`.
 
 Any new calls go in a fresh list here.
 
@@ -905,11 +955,10 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 18: the Household screen and the invite email.** Members with
-   roles, owners' invites and actions, the household's keep-history setting,
-   and Delete household for a sole member. Show Aamir at iPhone size before
-   committing, and split it into meaningful commits where it helps. Then
-   Task 19 (delete account), then Phase 4.
+1. **Task 19: the delete account flow, then Task 20: the first real
+   deploy** with security headers and a live smoke test. Task 20 needs Aamir:
+   a free Cloudflare account and a short iPhone check (which also finishes
+   V4). Then Phase 4 (reminders, retention, health watchdog, backups).
 2. **Watch the daily health Action.** A failure email from GitHub means
    look right away.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
