@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { formatDay, todayIn } from '../lib/calendar';
 import { errorMessage } from '../lib/errors';
 import {
+  useCancelInvite,
+  useInvite,
   useMembers,
   useMyHousehold,
+  usePendingInvites,
   useRemoveMember,
   useSetRole,
   useUpdateHousehold,
@@ -26,6 +30,9 @@ const KEEP_OPTIONS = [
   { value: 'never', label: 'Never' },
 ];
 
+// The same rule the invite function enforces.
+const EMAIL_OK = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
+
 const nameOf = (m: Member) => m.display_name || 'Unnamed';
 const roleLabel = (m: Member) => (m.role === 'owner' ? 'Owner' : 'Member');
 
@@ -36,6 +43,19 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
   const setRole = useSetRole(userId);
   const removeMember = useRemoveMember(userId);
   const updateHousehold = useUpdateHousehold(userId);
+  const pending = usePendingInvites(userId);
+  const sendInvite = useInvite(userId);
+  const cancelInvite = useCancelInvite(userId);
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteNote, setInviteNote] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const inviteGuard = useRef(false);
+  const cancelGuard = useRef(false);
 
   const [targetId, setTargetId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -95,10 +115,52 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
   }
 
   // Owners first, then by name.
+  const trimmedInvite = inviteEmail.trim();
+  const emailValid = EMAIL_OK.test(trimmedInvite.toLowerCase());
+  const emailBad = trimmedInvite !== '' && !emailValid;
   const list = [...(members.data ?? [])].sort(
     (a, b) => Number(b.role === 'owner') - Number(a.role === 'owner') || nameOf(a).localeCompare(nameOf(b)),
   );
   const target = list.find((x) => x.profile_id === targetId && x.profile_id !== userId) ?? null;
+
+  async function doInvite(e: FormEvent) {
+    e.preventDefault();
+    const email = inviteEmail.trim();
+    if (inviteGuard.current || !email) return;
+    if (!EMAIL_OK.test(email.toLowerCase())) {
+      setInviteError(errorMessage(new Error('bad_email')));
+      return;
+    }
+    inviteGuard.current = true;
+    setInviteBusy(true);
+    setInviteError('');
+    try {
+      await sendInvite.mutateAsync(email);
+      setInviteOpen(false);
+      setInviteNote(`Invite sent to ${email}.`);
+    } catch (err) {
+      setInviteError(errorMessage(err));
+    } finally {
+      inviteGuard.current = false;
+      setInviteBusy(false);
+    }
+  }
+
+  async function doCancel(id: string) {
+    if (cancelGuard.current) return;
+    cancelGuard.current = true;
+    setCancellingId(id);
+    setCancelError('');
+    setInviteNote('');
+    try {
+      await cancelInvite.mutateAsync(id);
+    } catch (err) {
+      setCancelError(errorMessage(err));
+    } finally {
+      cancelGuard.current = false;
+      setCancellingId(null);
+    }
+  }
 
   function closeSheet() {
     if (busy) return;
@@ -187,6 +249,52 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
 
       {isOwner && (
         <>
+          <GroupedList label="Pending invites">
+            {(pending.data ?? []).map((inv) => (
+              <div key={inv.id} className="row">
+                <span>
+                  {inv.email}
+                  <small className="row-caption">
+                    Expires {formatDay(todayIn(hh.time_zone, new Date(inv.expires_at)), 'date')}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  className="pay-link-button"
+                  aria-label={`Cancel invite for ${inv.email}`}
+                  disabled={!!cancellingId}
+                  onClick={() => void doCancel(inv.id)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="row row-button"
+              onClick={() => {
+                setInviteEmail('');
+                setInviteError('');
+                setInviteNote('');
+                setInviteOpen(true);
+              }}
+            >
+              + Invite someone by email
+            </button>
+          </GroupedList>
+          {pending.isError && (
+            <p role="alert" className="save-error">
+              {errorMessage(pending.error)}
+            </p>
+          )}
+          {cancelError && (
+            <p role="alert" className="save-error">
+              {cancelError}
+            </p>
+          )}
+          <p role="status" className="page-quiet settings-note">
+            {inviteNote}
+          </p>
           <GroupedList label="History">
             <Picker
               label="Keep history for"
@@ -214,6 +322,38 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
           soleNote="You're the only member."
         />
       </GroupedList>
+
+      <Sheet open={inviteOpen} onClose={() => !inviteBusy && setInviteOpen(false)} title="Invite someone">
+        <form noValidate onSubmit={(e) => void doInvite(e)}>
+          <label className="field">
+            <input
+              className="field-input"
+              type="email"
+              aria-invalid={emailBad}
+              aria-describedby={emailBad ? 'invite-email-hint' : undefined}
+              aria-label="Email address"
+              placeholder="Email address"
+              autoComplete="off"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+          </label>
+          {emailBad && (
+            <p id="invite-email-hint" className="page-quiet">
+              Enter an email address like name@example.com.
+            </p>
+          )}
+          <p className="settings-note">They'll get an email. They sign in with that address to join.</p>
+          {inviteError && (
+            <p role="alert" className="save-error">
+              {inviteError}
+            </p>
+          )}
+          <button type="submit" className="sheet-done" disabled={inviteBusy || !emailValid}>
+            Send invite
+          </button>
+        </form>
+      </Sheet>
 
       <Sheet open={!!target} onClose={closeSheet} title={target ? nameOf(target) : ''}>
         {target && (

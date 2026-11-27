@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -11,6 +11,9 @@ const m = vi.hoisted(() => ({
   remove: vi.fn(),
   updateHh: vi.fn(),
   leave: vi.fn(),
+  invites: [] as unknown[],
+  invite: vi.fn(),
+  cancel: vi.fn(),
 }));
 
 vi.mock('../lib/queries', () => ({
@@ -23,6 +26,9 @@ vi.mock('../lib/queries', () => ({
   useRemoveMember: () => ({ mutateAsync: m.remove }),
   useUpdateHousehold: () => ({ mutateAsync: m.updateHh }),
   useLeaveHousehold: () => ({ mutateAsync: m.leave }),
+  usePendingInvites: () => ({ data: m.invites, isError: false }),
+  useInvite: () => ({ mutateAsync: m.invite }),
+  useCancelInvite: () => ({ mutateAsync: m.cancel }),
 }));
 
 import HouseholdScreen from './HouseholdScreen';
@@ -56,6 +62,9 @@ beforeEach(() => {
   m.remove.mockReset().mockResolvedValue(undefined);
   m.updateHh.mockReset().mockResolvedValue(undefined);
   m.leave.mockReset().mockResolvedValue(undefined);
+  m.invites = [];
+  m.invite.mockReset().mockResolvedValue(undefined);
+  m.cancel.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => {
   cleanup();
@@ -221,6 +230,142 @@ describe('HouseholdScreen', () => {
       wrap();
       expect(screen.queryByRole('button', { name: 'Leave household' })).toBeNull();
       expect(screen.getByText(/You're the only member\./)).toBeTruthy();
+    });
+  });
+
+  describe('invites', () => {
+    const open = [
+      { id: 'i1', email: 'mom@test.local', expires_at: '2026-12-03T20:00:00Z' },
+      { id: 'i2', email: 'dad@test.local', expires_at: '2026-12-04T09:00:00Z' },
+    ];
+
+    test('an owner sees pending invites with expiry and Cancel, plus the invite row, and no counts', () => {
+      m.invites = open;
+      wrap();
+      const group = screen.getByRole('heading', { name: 'Pending invites' }).closest('section') as HTMLElement;
+      expect(within(group).getByText('mom@test.local')).toBeTruthy();
+      expect(within(group).getByText('Expires Dec 3')).toBeTruthy();
+      expect(within(group).getByText('Expires Dec 4')).toBeTruthy();
+      expect(within(group).getAllByRole('button', { name: /^Cancel invite for/ })).toHaveLength(2);
+      expect(within(group).getByRole('button', { name: '+ Invite someone by email' })).toBeTruthy();
+      expect(document.body.textContent).not.toMatch(/\d+ (pending|invites?)/i);
+    });
+
+    test('with no pending invites only the invite row shows', () => {
+      wrap();
+      const group = screen.getByRole('heading', { name: 'Pending invites' }).closest('section') as HTMLElement;
+      expect(within(group).getAllByRole('button')).toHaveLength(1);
+      expect(group.textContent).not.toMatch(/no (pending )?invites/i);
+    });
+
+    test('a member sees no invites section', () => {
+      m.household = hh('member');
+      m.invites = open;
+      wrap();
+      expect(screen.queryByRole('heading', { name: 'Pending invites' })).toBeNull();
+      expect(screen.queryByText('mom@test.local')).toBeNull();
+      expect(screen.queryByRole('button', { name: /Invite someone/ })).toBeNull();
+    });
+
+    test('Cancel cancels that invite without a confirm', async () => {
+      m.invites = open;
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: 'Cancel invite for dad@test.local' }));
+      expect(m.cancel).toHaveBeenCalledWith('i2');
+    });
+
+    test('a failed cancel shows the message', async () => {
+      m.invites = open;
+      m.cancel.mockRejectedValue(new Error('no_access'));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: 'Cancel invite for dad@test.local' }));
+      await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("You can't do that anymore. Refresh and try again."));
+    });
+
+    test('sending closes the sheet and says so quietly', async () => {
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: '+ Invite someone by email' }));
+      const dialog = screen.getByRole('dialog', { name: 'Invite someone' });
+      const field = within(dialog).getByRole('textbox', { name: 'Email address' }) as HTMLInputElement;
+      expect(field.type).toBe('email');
+      expect(field.autocomplete).toBe('off');
+      await u.type(field, 'new@test.local');
+      await u.click(within(dialog).getByRole('button', { name: 'Send invite' }));
+      expect(m.invite).toHaveBeenCalledWith('new@test.local');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Invite someone' })).toBeNull());
+      expect(screen.getByRole('status').textContent).toBe('Invite sent to new@test.local.');
+    });
+
+    test.each([
+      ['already_invited', 'That person already has an invite.'],
+      ['too_many_invites', 'There are already a lot of open invites. Cancel one first.'],
+      ['bad_email', 'Please enter a valid email address.'],
+      ['forbidden', "You don't have access to do that."],
+      ['email_failed', "We couldn't send that invite email. Please try again."],
+    ])('%s shows calm copy in the sheet', async (key, copy) => {
+      m.invite.mockRejectedValue(new Error(key));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: '+ Invite someone by email' }));
+      const dialog = screen.getByRole('dialog');
+      await u.type(within(dialog).getByRole('textbox', { name: 'Email address' }), 'x@test.local');
+      await u.click(within(dialog).getByRole('button', { name: 'Send invite' }));
+      await waitFor(() => expect(within(dialog).getByRole('alert').textContent).toBe(copy));
+      expect(screen.getByRole('dialog')).toBeTruthy();
+    });
+
+    test.each(['a,b@c.de', '<a@b.cd>', 'a b@c.de', '"q"a@b.cd', 'nodot@host'])(
+      'a bad address %s is refused in the sheet before sending',
+      async (bad) => {
+        const u = userEvent.setup();
+        wrap();
+        await u.click(screen.getByRole('button', { name: '+ Invite someone by email' }));
+        const dialog = screen.getByRole('dialog');
+        const field = within(dialog).getByRole('textbox', { name: 'Email address' }) as HTMLInputElement;
+        // type=email inputs reject some of these in jsdom; set the value directly.
+        fireEvent.change(field, { target: { value: bad } });
+        fireEvent.submit(field.closest('form')!);
+        expect(within(dialog).getByRole('alert').textContent).toBe('Please enter a valid email address.');
+        expect(m.invite).not.toHaveBeenCalled();
+      },
+    );
+
+    test('a malformed address disables Send and shows a hint', async () => {
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: '+ Invite someone by email' }));
+      const dialog = screen.getByRole('dialog');
+      const field = within(dialog).getByRole('textbox', { name: 'Email address' });
+      const send = within(dialog).getByRole('button', { name: 'Send invite' }) as HTMLButtonElement;
+      expect(send.disabled).toBe(true);
+      expect(within(dialog).queryByText(/like name@example\.com/)).toBeNull();
+      await u.type(field, 'a,riley@test.local');
+      expect(send.disabled).toBe(true);
+      expect(within(dialog).getByText('Enter an email address like name@example.com.')).toBeTruthy();
+      expect(field.getAttribute('aria-invalid')).toBe('true');
+      expect(field.getAttribute('aria-describedby')).toBe(within(dialog).getByText(/like name@example/).id);
+      expect(dialog.querySelector('form')!.noValidate).toBe(true);
+      await u.clear(field);
+      await u.type(field, 'riley@test.local');
+      expect(send.disabled).toBe(false);
+      expect(within(dialog).queryByText(/like name@example\.com/)).toBeNull();
+    });
+
+    test('a double submit sends once', async () => {
+      let done!: () => void;
+      m.invite.mockReturnValue(new Promise<void>((r) => (done = r)));
+      const u = userEvent.setup();
+      wrap();
+      await u.click(screen.getByRole('button', { name: '+ Invite someone by email' }));
+      const dialog = screen.getByRole('dialog');
+      await u.type(within(dialog).getByRole('textbox', { name: 'Email address' }), 'x@test.local{Enter}{Enter}');
+      await u.click(within(dialog).getByRole('button', { name: 'Send invite' }));
+      expect(m.invite).toHaveBeenCalledTimes(1);
+      done();
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Invite someone' })).toBeNull());
     });
   });
 });

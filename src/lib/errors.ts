@@ -2,6 +2,8 @@
 // copy. The server's own text is never shown.
 const MESSAGES: Record<string, string> = {
   already_in_household: 'You are already in a household.',
+  bad_email: 'Please enter a valid email address.',
+  email_failed: "We couldn't send that invite email. Please try again.",
   already_invited: 'That person already has an invite.',
   bad_time_zone: "That time zone isn't recognised.",
   category_scope_mismatch: "That category doesn't belong with this bill.",
@@ -18,6 +20,7 @@ const MESSAGES: Record<string, string> = {
   too_many_invites: 'There are already a lot of open invites. Cancel one first.',
   could_not_delete: "We couldn't delete your account. Please try again.",
   unauthorized: 'Please sign in again.',
+  invite_failed: "We couldn't send that invite. Please try again.",
 };
 
 export const GENERIC_ERROR = 'Something went wrong. Please try again.';

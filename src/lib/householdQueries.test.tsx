@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   memberships: [] as unknown[],
   names: [] as unknown[],
   household: null as unknown,
+  calls: [] as unknown[],
+  invoke: null as unknown,
   written: [{ x: 1 }] as unknown[],
 }));
 
@@ -19,6 +21,18 @@ vi.mock('./supabase', () => {
       update: (p: unknown) => {
         rec.op = 'update';
         rec.payload = p;
+        return chain;
+      },
+      is: (c: string, v: unknown) => {
+        rec.eq.push([`is:${c}`, v]);
+        return chain;
+      },
+      gt: (c: string) => {
+        rec.eq.push([`gt:${c}`, 'x']);
+        return chain;
+      },
+      order: (c: string, o: unknown) => {
+        rec.eq.push([`order:${c}`, o]);
         return chain;
       },
       delete: () => {
@@ -40,11 +54,17 @@ vi.mock('./supabase', () => {
     return chain;
   };
   return {
-    supabase: { from, rpc: () => Promise.resolve({ data: m.names, error: null }) },
+    supabase: {
+      from,
+      rpc: () => Promise.resolve({ data: m.names, error: null }),
+      functions: { invoke: (...a: unknown[]) => Promise.resolve(((m.calls = [a]), m.invoke)) },
+    },
   };
 });
 
-import { useMembers, useRemoveMember, useSetRole, useUpdateHousehold } from './queries';
+import { FunctionsHttpError, FunctionsFetchError } from '@supabase/supabase-js';
+import { errorMessage } from './errors';
+import { useCancelInvite, useInvite, useMembers, usePendingInvites, useRemoveMember, useSetRole, useUpdateHousehold } from './queries';
 
 function setup<T>(hook: () => T) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -126,5 +146,81 @@ describe('household management queries', () => {
     ]);
     const sel = m.ops.find((o) => o.op === 'select' && o.table === 'memberships' && o.eq[0]?.[0] === 'household_id')!;
     expect(sel.eq).toEqual([['household_id', 'h1']]);
+  });
+
+  test('usePendingInvites asks for open, unexpired invites of my household, newest first', async () => {
+    m.memberships = [{ id: 'i1', email: 'a@test.local', expires_at: 'x' }];
+    const { result } = setup(() => usePendingInvites('u1'));
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    const op = m.ops.find((o) => o.table === 'invites')!;
+    expect(op.eq).toEqual([
+      ['household_id', 'h1'],
+      ['is:accepted_at', null],
+      ['is:cancelled_at', null],
+      ['gt:expires_at', 'x'],
+      ['order:created_at', { ascending: false }],
+    ]);
+  });
+
+  test('usePendingInvites stays off for a member', async () => {
+    m.household = { role: 'member', households: { id: 'h1', name: 'H', time_zone: 'UTC', retention_months: 36 } };
+    setup(() => usePendingInvites('u1'));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(m.ops.some((o) => o.table === 'invites')).toBe(false);
+  });
+
+  test('useCancelInvite sets cancelled_at on that invite and refreshes invites', async () => {
+    const { result, spy } = setup(() => useCancelInvite('u1'));
+    await result.current.mutateAsync('i1');
+    const op = m.ops.find((o) => o.op === 'update')!;
+    expect(op.table).toBe('invites');
+    expect(Object.keys(op.payload as object)).toEqual(['cancelled_at']);
+    expect(op.eq).toEqual([['id', 'i1']]);
+    expect(spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0])).toContain('pending-invites');
+  });
+
+  test('useCancelInvite throws no_access on zero rows', async () => {
+    m.written = [];
+    const { result } = setup(() => useCancelInvite('u1'));
+    await expect(result.current.mutateAsync('i1')).rejects.toThrow('no_access');
+  });
+
+  test('useInvite sends the email to the function and refreshes invites', async () => {
+    m.invoke = { data: { ok: true }, error: null };
+    const { result, spy } = setup(() => useInvite('u1'));
+    await result.current.mutateAsync('a@test.local');
+    expect(m.calls).toEqual([['invite', { body: { email: 'a@test.local' } }]]);
+    expect(spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0])).toContain('pending-invites');
+  });
+
+  test.each(['already_invited', 'too_many_invites', 'bad_email', 'forbidden', 'email_failed'])(
+    'useInvite maps the function error %s',
+    async (key) => {
+      m.invoke = {
+        data: null,
+        error: new FunctionsHttpError(new Response(JSON.stringify({ error: key }), { status: 400 })),
+      };
+      const { result } = setup(() => useInvite('u1'));
+      const err = await result.current.mutateAsync('a@test.local').catch((e: unknown) => e);
+      expect((err as Error).message).toBe(key);
+      expect(errorMessage(err)).not.toBe('Something went wrong. Please try again.');
+    },
+  );
+
+  test('useInvite maps a gateway 401 (no error key) to the sign-in copy', async () => {
+    m.invoke = {
+      data: null,
+      error: new FunctionsHttpError(new Response(JSON.stringify({ code: 401, message: 'Invalid JWT' }), { status: 401 })),
+    };
+    const { result } = setup(() => useInvite('u1'));
+    const err = await result.current.mutateAsync('a@test.local').catch((e: unknown) => e);
+    expect(errorMessage(err)).toBe('Please sign in again.');
+  });
+
+  test('useInvite turns a network failure into calm generic copy', async () => {
+    m.invoke = { data: null, error: new FunctionsFetchError(new Error('offline')) };
+    const { result } = setup(() => useInvite('u1'));
+    const err = await result.current.mutateAsync('a@test.local').catch((e: unknown) => e);
+    expect(errorMessage(err)).toBe("We couldn't send that invite. Please try again.");
   });
 });

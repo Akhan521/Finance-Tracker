@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type { Database } from './database.types';
 import type { EntryRow, Status } from './totals';
@@ -20,6 +21,7 @@ export const keys = {
   archivedBills: (userId: string) => ['archived-bills', userId] as const,
   householdNames: (userId: string) => ['household-names', userId] as const,
   members: (userId: string) => ['members', userId] as const,
+  pendingInvites: (userId: string) => ['pending-invites', userId] as const,
   hasBills: (userId: string, view: View, householdId: string | null) =>
     ['has-bills', userId, view, householdId] as const,
 };
@@ -249,7 +251,7 @@ export function useEntryPayments(userId: string, entryId: string) {
 // Everything that depends on belonging to a household, by cache prefix.
 const HOUSEHOLD_SCOPED = [
   'entries', 'entry', 'entry-payments', 'has-bills', 'bill', 'bill-history',
-  'archived-bills', 'categories', 'household-names', 'members',
+  'archived-bills', 'categories', 'household-names', 'members', 'pending-invites',
 ] as const;
 
 export function useCreateHousehold(userId: string) {
@@ -363,6 +365,72 @@ export function useRemoveMember(userId: string) {
       if (!data || data.length === 0) throw new Error('no_access');
     },
     onSuccess: () => refreshMembers(qc, userId),
+  });
+}
+
+export type PendingInvite = { id: string; email: string; expires_at: string };
+
+// Open invites for my household, newest first. Owners only (RLS hides them from members).
+export function usePendingInvites(userId: string) {
+  const mine = useMyHousehold(userId).data;
+  const householdId = householdIdOf(mine);
+  return useQuery({
+    queryKey: keys.pendingInvites(userId),
+    enabled: !!householdId && mine?.role === 'owner',
+    queryFn: async (): Promise<PendingInvite[]> => {
+      const { data, error } = await supabase
+        .from('invites')
+        .select('id, email, expires_at')
+        .eq('household_id', householdId ?? '')
+        .is('accepted_at', null)
+        .is('cancelled_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Sends an invite through the Edge Function. Its error keys come back in the
+// response body; anything else (network, relay) reads as a generic failure.
+export function useInvite(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const { error } = await supabase.functions.invoke('invite', { body: { email } });
+      if (!error) return;
+      let key = 'invite_failed';
+      if (error instanceof FunctionsHttpError) {
+        // The gateway's own 401 has no error key in its body.
+        if (error.context.status === 401) key = 'unauthorized';
+        try {
+          const body = (await error.context.json()) as { error?: unknown };
+          if (typeof body.error === 'string') key = body.error;
+        } catch {
+          // keep the generic key
+        }
+      }
+      throw new Error(key);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.pendingInvites(userId) }),
+  });
+}
+
+// Cancelling is an update of cancelled_at; re-inviting undoes it.
+export function useCancelInvite(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (inviteId: string) => {
+      const { data, error } = await supabase
+        .from('invites')
+        .update({ cancelled_at: new Date().toISOString() })
+        .eq('id', inviteId)
+        .select('id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('no_access');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.pendingInvites(userId) }),
   });
 }
 

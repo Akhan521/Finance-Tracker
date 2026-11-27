@@ -35,3 +35,18 @@ export function resolveKeys(get: (name: string) => string | undefined): Keys | n
   if (!url || !publishable || !secret) return null
   return { url, publishable, secret }
 }
+
+/**
+ * The URL and publishable key only; never reads the secret key. For functions
+ * that act as the caller and need no admin access. Null means "fail closed".
+ */
+export function resolvePublicKeys(
+  get: (name: string) => string | undefined,
+): { url: string; publishable: string } | null {
+  const url = get('SUPABASE_URL')
+  const pub = fromMap(get('SUPABASE_PUBLISHABLE_KEYS'), 'sb_publishable_')
+  if (pub === 'invalid') return null
+  const publishable = pub ?? get('SUPABASE_ANON_KEY')
+  if (!url || !publishable) return null
+  return { url, publishable }
+}

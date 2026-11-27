@@ -437,3 +437,6 @@ enabled = true
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.invite]
+verify_jwt = true
