@@ -4,6 +4,7 @@ import { formatDay, todayIn } from '../lib/calendar';
 import { errorMessage } from '../lib/errors';
 import {
   useCancelInvite,
+  useDeleteHousehold,
   useInvite,
   useMembers,
   useMyHousehold,
@@ -17,6 +18,7 @@ import GroupedList from '../ui/GroupedList';
 import Picker from '../ui/Picker';
 import Sheet from '../ui/Sheet';
 import LeaveHousehold from './LeaveHousehold';
+import { useCsvExport } from './useCsvExport';
 import '../bills/bills.css';
 import '../bills/pay.css';
 import '../Pages.css';
@@ -46,6 +48,35 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
   const pending = usePendingInvites(userId);
   const sendInvite = useInvite(userId);
   const cancelInvite = useCancelInvite(userId);
+  const [deleted, setDeleted] = useState(false);
+  // Runs before the caches drop: render nothing and leave, so no empty state shows.
+  const deleteHousehold = useDeleteHousehold(userId, () => {
+    setDeleted(true);
+    navigate('/settings', { state: { householdDeleted: true } });
+  });
+  const csv = useCsvExport(userId);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [refocus, setRefocus] = useState(0);
+  const deleteGuard = useRef(false);
+  const deleteRowRef = useRef<HTMLButtonElement>(null);
+  const typedRef = useRef<HTMLInputElement>(null);
+  const deleteReturnFocus = useRef(false);
+  useEffect(() => {
+    if (deleteOpen) {
+      typedRef.current?.focus();
+    } else if (deleteReturnFocus.current) {
+      deleteRowRef.current?.focus();
+      deleteReturnFocus.current = false;
+    }
+  }, [deleteOpen]);
+  // After a failed delete, put focus back in the confirm field.
+  useEffect(() => {
+    if (refocus > 0) typedRef.current?.focus();
+  }, [refocus]);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -91,6 +122,7 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
     </header>
   );
 
+  if (deleted) return null;
   if (household.data === undefined) {
     return (
       <main className="page new-bill">
@@ -115,6 +147,7 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
   }
 
   // Owners first, then by name.
+  const soleOwner = isOwner && members.data?.length === 1 && members.data[0].profile_id === userId;
   const trimmedInvite = inviteEmail.trim();
   const emailValid = EMAIL_OK.test(trimmedInvite.toLowerCase());
   const emailBad = trimmedInvite !== '' && !emailValid;
@@ -159,6 +192,22 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
     } finally {
       cancelGuard.current = false;
       setCancellingId(null);
+    }
+  }
+
+  async function doDelete() {
+    if (deleteGuard.current || !hh || typed.trim() !== hh.name) return;
+    deleteGuard.current = true;
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      await deleteHousehold.mutateAsync(hh.id);
+      // The guard stays set on success: the screen is leaving, and a late tap must not delete twice.
+    } catch (err) {
+      setDeleteError(errorMessage(err));
+      setRefocus((n) => n + 1);
+      deleteGuard.current = false;
+      setDeleteBusy(false);
     }
   }
 
@@ -319,8 +368,83 @@ export default function HouseholdScreen({ userId }: { userId: string }) {
           household={hh}
           memberCount={members.data?.length}
           onLeft={() => navigate('/settings')}
-          soleNote="You're the only member."
+          soleNote={soleOwner ? '' : "You're the only member."}
         />
+        {soleOwner && !deleteOpen && (
+          <button
+            ref={deleteRowRef}
+            type="button"
+            className="row row-button danger"
+            onClick={() => {
+              setTyped('');
+              setDeleteError('');
+              setDeleteOpen(true);
+            }}
+          >
+            Delete household
+          </button>
+        )}
+        {soleOwner && deleteOpen && (
+          <div className="pay-confirm delete-panel" role="group" aria-label={`Delete ${hh.name}?`}>
+            <span id="delete-warning">
+              Deleting {hh.name} permanently removes all its bills, payments and history. This can't be undone.
+            </span>
+            <div className="delete-panel-actions">
+              <button
+                type="button"
+                className="pay-link-button"
+                disabled={csv.exporting || !csv.ready || deleteBusy}
+                onClick={() => void csv.run()}
+              >
+                {csv.exporting ? 'Preparing…' : 'Export first'}
+              </button>
+            </div>
+            {csv.error && (
+              <p role="alert" className="save-error">
+                {csv.error}
+              </p>
+            )}
+            <label className="field">
+              <span className="field-label">Type {hh.name} to confirm</span>
+              <input
+                ref={typedRef}
+                className="field-input"
+                type="text"
+                autoComplete="off"
+                aria-describedby="delete-warning"
+                disabled={deleteBusy}
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+              />
+            </label>
+            {deleteError && (
+              <p role="alert" className="save-error">
+                {deleteError}
+              </p>
+            )}
+            <div className="delete-panel-actions">
+              <button
+                type="button"
+                className="pay-link-button danger"
+                disabled={deleteBusy || typed.trim() !== hh.name}
+                onClick={() => void doDelete()}
+              >
+                Delete household
+              </button>
+              <button
+                type="button"
+                className="pay-link-button"
+                disabled={deleteBusy}
+                onClick={() => {
+                  deleteReturnFocus.current = true;
+                  setDeleteOpen(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </GroupedList>
 
       <Sheet open={inviteOpen} onClose={() => !inviteBusy && setInviteOpen(false)} title="Invite someone">

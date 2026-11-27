@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({
@@ -430,6 +431,59 @@ describe('Settings', () => {
       m.household = null;
       wrap();
       expect(screen.queryByRole('button', { name: 'Leave household' })).toBeNull();
+    });
+  });
+
+  describe('after deleting a household', () => {
+    test('shows a quiet status once', () => {
+      m.household = null;
+      render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={[{ pathname: '/settings', state: { householdDeleted: true } }]}>
+            <Settings userId="u1" />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      expect(screen.getByText('Household deleted.').getAttribute('role')).toBe('status');
+    });
+
+    test('clears the router flag, so it does not come back', async () => {
+      m.household = null;
+      const states: unknown[] = [];
+      function Probe() {
+        const { state } = useLocation();
+        useEffect(() => {
+          states.push(state);
+        });
+        return null;
+      }
+      const tree = (
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={[{ pathname: '/settings', state: { householdDeleted: true } }]}>
+            <Settings userId="u1" />
+            <Probe />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      const view = render(tree);
+      await waitFor(() => expect(states.at(-1)).toBeNull());
+      expect(screen.getByText('Household deleted.')).toBeTruthy();
+      cleanup();
+      // A fresh mount at the cleared location shows nothing.
+      render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/settings']}>
+            <Settings userId="u1" />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      expect(screen.queryByText('Household deleted.')).toBeNull();
+      void view;
+    });
+
+    test('shows nothing otherwise', () => {
+      wrap();
+      expect(screen.queryByText('Household deleted.')).toBeNull();
     });
   });
 

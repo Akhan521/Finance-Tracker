@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useSignOut } from '../auth/useSignOut';
-import { endOfMonth, todayIn } from '../lib/calendar';
-import { toCsv } from '../lib/csv';
-import { buildExportRows } from '../lib/export';
 import { errorMessage } from '../lib/errors';
 import {
   useCreateHousehold,
@@ -13,6 +10,7 @@ import {
   type ProfileChanges,
 } from '../lib/queries';
 import LeaveHousehold from './LeaveHousehold';
+import { useCsvExport } from './useCsvExport';
 import GroupedList from '../ui/GroupedList';
 import Picker from '../ui/Picker';
 import Sheet from '../ui/Sheet';
@@ -59,15 +57,22 @@ export default function Settings({ userId }: { userId: string }) {
   const household = useMyHousehold(userId);
   const update = useUpdateProfile(userId);
   const signOut = useSignOut();
+  // Set once by the Household screen after a delete; cleared from history so it doesn't return.
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [deleted] = useState(
+    () => (location.state as { householdDeleted?: boolean } | null)?.householdDeleted === true,
+  );
+  useEffect(() => {
+    if (deleted) navigate('.', { replace: true, state: null });
+  }, [deleted, navigate]);
   const hhId = household.data?.households?.id ?? null;
   const create = useCreateHousehold(userId);
   const [createOpen, setCreateOpen] = useState(false);
   const [hhName, setHhName] = useState('');
   const [createError, setCreateError] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
-  const exportGuard = useRef(false);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState('');
+  const { exporting, error: exportError, run: doExport } = useCsvExport(userId);
   const createGuard = useRef(false);
   const returnFocus = useRef(false);
   const createRef = useRef<HTMLButtonElement>(null);
@@ -115,30 +120,6 @@ export default function Settings({ userId }: { userId: string }) {
     } catch {
       setAccountError("Couldn't sign out. Please try again.");
       setSigningOut(false);
-    }
-  }
-
-  async function doExport() {
-    if (exportGuard.current || !p) return;
-    exportGuard.current = true;
-    setExporting(true);
-    setExportError('');
-    try {
-      const today = todayIn(p.time_zone);
-      const csv = toCsv(await buildExportRows(userId, endOfMonth(today)));
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bills-${today}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url));
-    } catch {
-      setExportError("Couldn't prepare your export. Please try again.");
-    } finally {
-      exportGuard.current = false;
-      setExporting(false);
     }
   }
 
@@ -212,6 +193,11 @@ export default function Settings({ userId }: { userId: string }) {
   return (
     <main className="page new-bill">
       {bar}
+      {deleted && (
+        <p role="status" className="page-quiet">
+          Household deleted.
+        </p>
+      )}
       <GroupedList label="Email reminders">
         {hh && (
           <div className="row">

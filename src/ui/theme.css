@@ -10,6 +10,7 @@
   --muted: #6b655b;
   --link: #4a5f9e;
   --focus: #4a5f9e;
+  --danger: #9a2b3b; /* destructive text, >= 4.5:1 on --cream and --surface */
 
   /* Status: sage = paid, rose = overdue, butter = upcoming. Use --ink text on the fills. */
   --sage: #a8d5ba;

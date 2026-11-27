@@ -286,13 +286,33 @@ export function useLeaveHousehold(userId: string) {
         .eq('household_id', householdId);
       if (error) throw error;
     },
+    onSuccess: () => dropHouseholdData(qc, userId),
+  });
+}
+
+// Drop (not just refresh) so no household data can flash, then refresh who I am.
+function dropHouseholdData(qc: ReturnType<typeof useQueryClient>, userId: string) {
+  for (const k of HOUSEHOLD_SCOPED) qc.removeQueries({ queryKey: [k, userId] });
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: keys.household(userId) }),
+    qc.invalidateQueries({ queryKey: keys.profile(userId) }),
+  ]);
+}
+
+// Only the sole owner can do this (the database checks); it removes everything under the household.
+// `onDeleted` runs first, before any cache is dropped, so the screen can leave
+// before household data goes missing.
+export function useDeleteHousehold(userId: string, onDeleted?: () => void) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (householdId: string) => {
+      const { error } = await supabase.rpc('delete_household', { p_household: householdId });
+      if (error) throw error;
+    },
+    // The refetch is not awaited either.
     onSuccess: () => {
-      // Drop (not just refresh) so no household data can flash.
-      for (const k of HOUSEHOLD_SCOPED) qc.removeQueries({ queryKey: [k, userId] });
-      return Promise.all([
-        qc.invalidateQueries({ queryKey: keys.household(userId) }),
-        qc.invalidateQueries({ queryKey: keys.profile(userId) }),
-      ]);
+      onDeleted?.();
+      void dropHouseholdData(qc, userId);
     },
   });
 }

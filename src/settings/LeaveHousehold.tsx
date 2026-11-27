@@ -10,7 +10,7 @@ type Props = {
   // The caller's own member count, when it has one, so the note and its list agree.
   memberCount?: number;
   // Shown instead of a Leave row when you're the only member.
-  soleNote: string;
+  soleNote: string; // empty hides it
 };
 
 // The Leave row, its inline confirm, its error and the sole-member note. Renders
@@ -91,7 +91,7 @@ export default function LeaveHousehold({ userId, household, onLeft, memberCount,
           {error}
         </p>
       )}
-      {count === 1 && <p className="page-quiet settings-note">{soleNote}</p>}
+      {count === 1 && soleNote && <p className="page-quiet settings-note">{soleNote}</p>}
     </>
   );
 }

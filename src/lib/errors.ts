@@ -16,7 +16,7 @@ const MESSAGES: Record<string, string> = {
   no_access: "You can't do that anymore. Refresh and try again.",
   not_credit_card: 'That only applies to credit card bills.',
   not_signed_in: 'Please sign in again.',
-  not_sole_owner: 'Only the one owner of a household can delete it.',
+  not_sole_owner: "You can only delete a household when you're its only member.",
   too_many_invites: 'There are already a lot of open invites. Cancel one first.',
   could_not_delete: "We couldn't delete your account. Please try again.",
   unauthorized: 'Please sign in again.',

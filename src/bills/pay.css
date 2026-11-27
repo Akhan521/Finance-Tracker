@@ -134,6 +134,14 @@
 
 .pay-link-button.danger {
   font-weight: 650;
+  color: var(--danger);
+}
+
+/* Disabled reads as muted, whatever the variant. */
+.pay-link-button:disabled,
+.pay-link-button.danger:disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 .pay-confirm {

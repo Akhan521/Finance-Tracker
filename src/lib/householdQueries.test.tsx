@@ -9,6 +9,8 @@ const m = vi.hoisted(() => ({
   names: [] as unknown[],
   household: null as unknown,
   calls: [] as unknown[],
+  rpcError: null as unknown,
+  rpcCalls: [] as unknown[][],
   invoke: null as unknown,
   written: [{ x: 1 }] as unknown[],
 }));
@@ -56,7 +58,10 @@ vi.mock('./supabase', () => {
   return {
     supabase: {
       from,
-      rpc: () => Promise.resolve({ data: m.names, error: null }),
+      rpc: (...a: unknown[]) => {
+        m.rpcCalls.push(a);
+        return Promise.resolve(a[0] === 'delete_household' ? { data: null, error: m.rpcError } : { data: m.names, error: null });
+      },
       functions: { invoke: (...a: unknown[]) => Promise.resolve(((m.calls = [a]), m.invoke)) },
     },
   };
@@ -64,7 +69,7 @@ vi.mock('./supabase', () => {
 
 import { FunctionsHttpError, FunctionsFetchError } from '@supabase/supabase-js';
 import { errorMessage } from './errors';
-import { useCancelInvite, useInvite, useMembers, usePendingInvites, useRemoveMember, useSetRole, useUpdateHousehold } from './queries';
+import { useCancelInvite, useDeleteHousehold, useInvite, useMembers, usePendingInvites, useRemoveMember, useSetRole, useUpdateHousehold } from './queries';
 
 function setup<T>(hook: () => T) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -77,6 +82,8 @@ function setup<T>(hook: () => T) {
 
 beforeEach(() => {
   m.ops = [];
+  m.rpcError = null;
+  m.rpcCalls = [];
   m.memberships = [];
   m.names = [];
   m.written = [{ x: 1 }];
@@ -222,5 +229,64 @@ describe('household management queries', () => {
     const { result } = setup(() => useInvite('u1'));
     const err = await result.current.mutateAsync('a@test.local').catch((e: unknown) => e);
     expect(errorMessage(err)).toBe("We couldn't send that invite. Please try again.");
+  });
+
+  describe('useDeleteHousehold', () => {
+    const seed = (qc: QueryClient) => {
+      qc.setQueryData(['entries', 'u1', 'household', 'h1', 2026, 11], [1]);
+      qc.setQueryData(['members', 'u1'], [1]);
+      qc.setQueryData(['pending-invites', 'u1'], [1]);
+      qc.setQueryData(['household-names', 'u1'], [1]);
+      qc.setQueryData(['entries', 'u2', 'household', 'h1', 2026, 11], [1]);
+    };
+    let onDeleted: (() => void) | undefined;
+    const withClient = () => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      seed(qc);
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+      );
+      return { qc, ...renderHook(() => useDeleteHousehold('u1', onDeleted), { wrapper }) };
+    };
+
+    test('calls delete_household and drops every household-scoped cache for this person', async () => {
+      const { qc, result } = withClient();
+      await result.current.mutateAsync('h1');
+      expect(m.rpcCalls).toEqual([['delete_household', { p_household: 'h1' }]]);
+      expect(qc.getQueryData(['entries', 'u1', 'household', 'h1', 2026, 11])).toBeUndefined();
+      expect(qc.getQueryData(['members', 'u1'])).toBeUndefined();
+      expect(qc.getQueryData(['pending-invites', 'u1'])).toBeUndefined();
+      expect(qc.getQueryData(['household-names', 'u1'])).toBeUndefined();
+      // Another person's cache is untouched.
+      expect(qc.getQueryData(['entries', 'u2', 'household', 'h1', 2026, 11])).toEqual([1]);
+    });
+
+    test('runs onDeleted before any cache is dropped', async () => {
+      let during: unknown;
+      onDeleted = () => {
+        during = qc.getQueryData(['members', 'u1']);
+      };
+      const { qc, result } = withClient();
+      await result.current.mutateAsync('h1');
+      expect(during).toEqual([1]);
+      expect(qc.getQueryData(['members', 'u1'])).toBeUndefined();
+      onDeleted = undefined;
+    });
+
+    test('invalidates household and profile, without waiting for the refetch', async () => {
+      const { qc, result } = withClient();
+      const spy = vi.spyOn(qc, 'invalidateQueries').mockReturnValue(new Promise(() => {}));
+      await result.current.mutateAsync('h1'); // would hang if it awaited the refetch
+      const keysDone = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
+      expect(keysDone).toEqual(expect.arrayContaining(['household', 'profile']));
+    });
+
+    test('a failure leaves the cache untouched', async () => {
+      m.rpcError = { message: 'not_sole_owner' };
+      const { qc, result } = withClient();
+      await expect(result.current.mutateAsync('h1')).rejects.toBeTruthy();
+      expect(qc.getQueryData(['members', 'u1'])).toEqual([1]);
+      expect(qc.getQueryData(['entries', 'u1', 'household', 'h1', 2026, 11])).toEqual([1]);
+    });
   });
 });

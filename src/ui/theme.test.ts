@@ -41,7 +41,7 @@ describe('theme contrast (WCAG AA 4.5:1 for text)', () => {
   });
 
   test('every expected token exists', () => {
-    for (const n of [...FILLS, 'ink', 'muted', 'line', 'field-border', 'focus']) expect(() => token(n)).not.toThrow();
+    for (const n of [...FILLS, 'ink', 'muted', 'line', 'field-border', 'focus', 'danger']) expect(() => token(n)).not.toThrow();
   });
 
   test('the six category colours match the seeded categories', () => {
@@ -66,6 +66,10 @@ describe('theme contrast (WCAG AA 4.5:1 for text)', () => {
 
   test('--link on --cream and --surface', () => {
     for (const f of ['cream', 'surface']) expect(contrast(token('link'), token(f))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('--danger on --cream and --surface', () => {
+    for (const f of ['cream', 'surface']) expect(contrast(token('danger'), token(f))).toBeGreaterThanOrEqual(4.5);
   });
 
   test('--field-border (control border) is at least 3:1 on --cream', () => {
