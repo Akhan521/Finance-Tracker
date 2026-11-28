@@ -293,10 +293,12 @@ describe('Settings', () => {
 
   describe('time zone', () => {
     const realSupported = (Intl as unknown as { supportedValuesOf?: unknown }).supportedValuesOf;
-    const setDevice = (tz: string) =>
-      vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
-        () => ({ resolvedOptions: () => ({ timeZone: tz }) }) as unknown as Intl.DateTimeFormat,
-      );
+    const setDevice = (tz: string) => {
+      const real = Intl.DateTimeFormat;
+      vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function (l?: string, o?: Intl.DateTimeFormatOptions) {
+        return o?.timeZoneName ? new real(l, o) : { resolvedOptions: () => ({ timeZone: tz }) };
+      } as unknown as typeof Intl.DateTimeFormat);
+    };
     const setSupported = (v: unknown) =>
       Object.defineProperty(Intl, 'supportedValuesOf', { value: v, configurable: true, writable: true });
     beforeEach(() => {
@@ -315,7 +317,7 @@ describe('Settings', () => {
       wrap();
       const row = screen.getByRole('button', { name: /Time zone/ });
       expect(row.textContent).toContain('UTC');
-      expect(row.textContent).toContain('This device: America/Los_Angeles');
+      expect(row.textContent).toContain('This device: Los Angeles (Pacific Time)');
       cleanup();
       m.profile = { ...base, time_zone: 'America/Los_Angeles' };
       wrap();
@@ -330,10 +332,24 @@ describe('Settings', () => {
       wrap();
       const dialog = await open(u);
       expect(within(dialog).getByRole('heading', { name: 'Time zone' })).toBeTruthy();
-      await u.click(within(dialog).getByRole('button', { name: "Use this device's time zone (America/Los_Angeles)" }));
+      await u.click(within(dialog).getByRole('button', { name: "Use this device's time zone: Los Angeles (Pacific Time)" }));
       expect(m.update).toHaveBeenCalledTimes(1);
       expect(m.update).toHaveBeenCalledWith({ time_zone: 'America/Los_Angeles' });
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    });
+
+    test('no raw zone id with underscores is visible, and options are grouped with friendly labels', async () => {
+      setSupported(() => ['America/Los_Angeles', 'America/Argentina/Buenos_Aires', 'Europe/Paris', 'Etc/GMT+5', 'UTC']);
+      const u = userEvent.setup();
+      const { container } = wrap();
+      const dialog = await open(u);
+      expect(container.textContent).not.toContain('_');
+      expect(dialog.textContent).not.toContain('_');
+      const groups = Array.from(dialog.querySelectorAll('optgroup')).map((g) => g.label);
+      expect(groups).toEqual(['America', 'Europe', 'Other']);
+      const la = within(dialog).getByRole('option', { name: 'Los Angeles (Pacific Time)' }) as HTMLOptionElement;
+      expect(la.value).toBe('America/Los_Angeles');
+      expect(within(dialog).getByRole('option', { name: /^Buenos Aires \(.*\)$/ })).toBeTruthy();
     });
 
     test('no one-tap button when the device matches', async () => {
@@ -416,7 +432,7 @@ describe('Settings', () => {
       wrap();
       await u.click(screen.getByRole('button', { name: /Create household/ }));
       const dialog = screen.getByRole('dialog');
-      expect(within(dialog).getByText('Time zone: America/Los_Angeles')).toBeTruthy();
+      expect(within(dialog).getByText('Time zone: Los Angeles (Pacific Time)')).toBeTruthy();
       expect(within(dialog).getByText('Bills in this household follow this time zone.')).toBeTruthy();
       const input = within(dialog).getByRole('textbox', { name: 'Household name' });
       const create = within(dialog).getByRole('button', { name: 'Create' }) as HTMLButtonElement;
@@ -444,7 +460,7 @@ describe('Settings', () => {
       wrap();
       await u.click(screen.getByRole('button', { name: /Create household/ }));
       const dialog = screen.getByRole('dialog');
-      expect(within(dialog).getByText('Time zone: Europe/Paris')).toBeTruthy();
+      expect(within(dialog).getByText('Time zone: Paris (Central European Time)')).toBeTruthy();
       await u.type(within(dialog).getByRole('textbox', { name: 'Household name' }), 'Home');
       await u.click(within(dialog).getByRole('button', { name: 'Create' }));
       expect(m.create).toHaveBeenCalledWith({ name: 'Home', timeZone: 'Europe/Paris' });

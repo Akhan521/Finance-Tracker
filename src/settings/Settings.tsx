@@ -9,6 +9,7 @@ import {
   useUpdateProfile,
   type ProfileChanges,
 } from '../lib/queries';
+import { zoneCity, zoneFriendly, zoneRegion } from '../lib/timeZones';
 import LeaveHousehold from './LeaveHousehold';
 import { useCsvExport } from './useCsvExport';
 import GroupedList from '../ui/GroupedList';
@@ -45,13 +46,8 @@ function deviceZone(profileZone: string | undefined): string {
   return profileZone || 'UTC';
 }
 
-// "America/Los_Angeles" reads as "Los Angeles" on the row; zones without a city stay as is.
-function zoneLabel(zone: string): string {
-  return (zone.includes('/') && zone.split('/').pop()!.replace(/_/g, ' ')) || zone;
-}
-
 // Every zone the browser knows, else a short list of the zones we do know about.
-function zoneList(profileZone: string, device: string): string[] {
+function zoneIds(profileZone: string, device: string): string[] {
   let all: string[] = [];
   try {
     const fn = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
@@ -59,7 +55,19 @@ function zoneList(profileZone: string, device: string): string[] {
   } catch {
     // use the fallback below
   }
-  return Array.from(new Set([...all, 'UTC', profileZone, device])).sort();
+  return Array.from(new Set([...all, 'UTC', profileZone, device]));
+}
+
+// Options grouped by region (alphabetical, "Other" last), labelled by friendly name; values stay ids.
+function zoneGroups(ids: string[]): { region: string; zones: { id: string; label: string }[] }[] {
+  const by = new Map<string, { id: string; label: string }[]>();
+  for (const id of ids) {
+    const r = zoneRegion(id);
+    by.set(r, [...(by.get(r) ?? []), { id, label: zoneFriendly(id) }]);
+  }
+  return [...by.entries()]
+    .sort(([a], [b]) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)))
+    .map(([region, zones]) => ({ region, zones: zones.sort((x, y) => x.label.localeCompare(y.label)) }));
 }
 
 function nameProblem(name: string): string {
@@ -367,9 +375,9 @@ export default function Settings({ userId }: { userId: string }) {
         >
           <span className="tz-label">
             <span className="tz-name">Time zone</span>
-            {deviceDiffers && <small className="row-caption tz-caption">This device: {device}</small>}
+            {deviceDiffers && <small className="row-caption tz-caption">This device: {zoneFriendly(device)}</small>}
           </span>
-          <span className="row-value tz-value">{zoneLabel(profileZone)}</span>
+          <span className="row-value tz-value">{zoneCity(profileZone)}</span>
         </button>
         <button type="button" className="row row-button" disabled={signingOut} onClick={() => void doSignOut('local')}>
           Sign out
@@ -412,7 +420,7 @@ export default function Settings({ userId }: { userId: string }) {
           {hhName.trim().length > 40 && (
             <p className="page-quiet">Please keep the name to 40 characters or fewer.</p>
           )}
-          <p className="settings-note">Time zone: {zone}</p>
+          <p className="settings-note">Time zone: {zoneFriendly(zone)}</p>
           <p className="settings-note">Bills in this household follow this time zone.</p>
           {createError && (
             <p role="alert" className="save-error">
@@ -438,7 +446,7 @@ export default function Settings({ userId }: { userId: string }) {
         >
           {deviceDiffers && (
             <button type="button" className="sheet-done" disabled={tzBusy} onClick={() => void saveZone(device)}>
-              Use this device's time zone ({device})
+              Use this device's time zone: {zoneFriendly(device)}
             </button>
           )}
           <label className="field">
@@ -449,10 +457,14 @@ export default function Settings({ userId }: { userId: string }) {
               disabled={tzBusy}
               onChange={(e) => setTzChoice(e.target.value)}
             >
-              {zoneList(profileZone, device).map((z) => (
-                <option key={z} value={z}>
-                  {z}
-                </option>
+              {zoneGroups(zoneIds(profileZone, device)).map((g) => (
+                <optgroup key={g.region} label={g.region}>
+                  {g.zones.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
