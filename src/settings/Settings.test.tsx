@@ -291,6 +291,110 @@ describe('Settings', () => {
     expect((within(dialog).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  describe('time zone', () => {
+    const realSupported = (Intl as unknown as { supportedValuesOf?: unknown }).supportedValuesOf;
+    const setDevice = (tz: string) =>
+      vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+        () => ({ resolvedOptions: () => ({ timeZone: tz }) }) as unknown as Intl.DateTimeFormat,
+      );
+    const setSupported = (v: unknown) =>
+      Object.defineProperty(Intl, 'supportedValuesOf', { value: v, configurable: true, writable: true });
+    beforeEach(() => {
+      m.profile = { ...base, time_zone: 'UTC' };
+      setDevice('America/Los_Angeles');
+      setSupported(() => ['America/Chicago', 'America/Los_Angeles', 'Europe/Paris', 'UTC']);
+    });
+    afterEach(() => setSupported(realSupported));
+
+    const open = async (u: ReturnType<typeof userEvent.setup>) => {
+      await u.click(screen.getByRole('button', { name: /Time zone/ }));
+      return screen.getByRole('dialog');
+    };
+
+    test('the row shows the zone, and the device caption only when it differs', () => {
+      wrap();
+      const row = screen.getByRole('button', { name: /Time zone/ });
+      expect(row.textContent).toContain('UTC');
+      expect(row.textContent).toContain('This device: America/Los_Angeles');
+      cleanup();
+      m.profile = { ...base, time_zone: 'America/Los_Angeles' };
+      wrap();
+      const same = screen.getByRole('button', { name: /Time zone/ });
+      expect(same.textContent).toContain('Los Angeles');
+      expect(same.textContent).not.toContain('America/Los_Angeles');
+      expect(same.textContent).not.toContain('This device');
+    });
+
+    test('one tap saves exactly the device zone and closes', async () => {
+      const u = userEvent.setup();
+      wrap();
+      const dialog = await open(u);
+      expect(within(dialog).getByRole('heading', { name: 'Time zone' })).toBeTruthy();
+      await u.click(within(dialog).getByRole('button', { name: "Use this device's time zone (America/Los_Angeles)" }));
+      expect(m.update).toHaveBeenCalledTimes(1);
+      expect(m.update).toHaveBeenCalledWith({ time_zone: 'America/Los_Angeles' });
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    });
+
+    test('no one-tap button when the device matches', async () => {
+      m.profile = { ...base, time_zone: 'America/Los_Angeles' };
+      const u = userEvent.setup();
+      wrap();
+      const dialog = await open(u);
+      expect(within(dialog).queryByRole('button', { name: /Use this device/ })).toBeNull();
+    });
+
+    test('the select is preselected, Save is disabled until it changes, then saves the choice', async () => {
+      const u = userEvent.setup();
+      wrap();
+      const dialog = await open(u);
+      const select = within(dialog).getByRole('combobox', { name: 'Choose a time zone' }) as HTMLSelectElement;
+      const save = within(dialog).getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+      expect(select.value).toBe('UTC');
+      expect(save.disabled).toBe(true);
+      await u.selectOptions(select, 'Europe/Paris');
+      expect(save.disabled).toBe(false);
+      await u.click(save);
+      expect(m.update).toHaveBeenCalledTimes(1);
+      expect(m.update).toHaveBeenCalledWith({ time_zone: 'Europe/Paris' });
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    });
+
+    test('a failed save shows calm copy and keeps the old value', async () => {
+      m.update.mockRejectedValue(new Error('boom raw server text'));
+      const u = userEvent.setup();
+      wrap();
+      const dialog = await open(u);
+      await u.selectOptions(within(dialog).getByRole('combobox', { name: 'Choose a time zone' }), 'Europe/Paris');
+      await u.click(within(dialog).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(within(dialog).getByRole('alert')).toBeTruthy());
+      expect(within(dialog).getByRole('alert').textContent).not.toMatch(/raw server/);
+      expect(screen.getByRole('dialog')).toBeTruthy();
+      expect(screen.getAllByText('UTC').length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: /Time zone/ }).textContent).toContain('UTC');
+    });
+
+    test('falls back to the profile and device zones when supportedValuesOf is missing', async () => {
+      setSupported(undefined);
+      const u = userEvent.setup();
+      wrap();
+      const dialog = await open(u);
+      const select = within(dialog).getByRole('combobox', { name: 'Choose a time zone' }) as HTMLSelectElement;
+      const values = Array.from(select.options).map((o) => o.value);
+      expect(values).toContain('UTC');
+      expect(values).toContain('America/Los_Angeles');
+      expect(select.value).toBe('UTC');
+    });
+
+    test('a profile zone missing from the list is still selectable', async () => {
+      m.profile = { ...base, time_zone: 'Asia/Karachi' };
+      const u = userEvent.setup();
+      wrap();
+      const dialog = await open(u);
+      expect((within(dialog).getByRole('combobox', { name: 'Choose a time zone' }) as HTMLSelectElement).value).toBe('Asia/Karachi');
+    });
+  });
+
   describe('create household', () => {
     beforeEach(() => {
       m.household = null;

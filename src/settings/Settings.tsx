@@ -45,6 +45,23 @@ function deviceZone(profileZone: string | undefined): string {
   return profileZone || 'UTC';
 }
 
+// "America/Los_Angeles" reads as "Los Angeles" on the row; zones without a city stay as is.
+function zoneLabel(zone: string): string {
+  return (zone.includes('/') && zone.split('/').pop()!.replace(/_/g, ' ')) || zone;
+}
+
+// Every zone the browser knows, else a short list of the zones we do know about.
+function zoneList(profileZone: string, device: string): string[] {
+  let all: string[] = [];
+  try {
+    const fn = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+    if (typeof fn === 'function') all = fn.call(Intl, 'timeZone');
+  } catch {
+    // use the fallback below
+  }
+  return Array.from(new Set([...all, 'UTC', profileZone, device])).sort();
+}
+
 function nameProblem(name: string): string {
   const t = name.trim();
   if (!t) return 'Please enter your name.';
@@ -92,6 +109,11 @@ export default function Settings({ userId }: { userId: string }) {
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
   const [nameBusy, setNameBusy] = useState(false);
+  const [tzOpen, setTzOpen] = useState(false);
+  const [tzChoice, setTzChoice] = useState('UTC');
+  const [tzError, setTzError] = useState('');
+  const [tzBusy, setTzBusy] = useState(false);
+  const tzGuard = useRef(false);
   const p = profile.data;
   const zone = deviceZone(p?.time_zone);
 
@@ -156,6 +178,22 @@ export default function Settings({ userId }: { userId: string }) {
     }
   }
 
+  async function saveZone(next: string) {
+    if (tzGuard.current || !next || next === p?.time_zone) return;
+    tzGuard.current = true;
+    setTzBusy(true);
+    setTzError('');
+    try {
+      await update.mutateAsync({ time_zone: next });
+      setTzOpen(false);
+    } catch (err) {
+      setTzError(errorMessage(err));
+    } finally {
+      tzGuard.current = false;
+      setTzBusy(false);
+    }
+  }
+
   const bar = (
     <header className="new-bill-bar">
       <Link to="/" className="bar-link">
@@ -189,6 +227,9 @@ export default function Settings({ userId }: { userId: string }) {
   const keep = keepValue === null || keepValue === undefined ? 'never' : String(keepValue);
   const trimmed = name.trim();
   const problem = nameProblem(name);
+  const profileZone = p.time_zone || 'UTC';
+  const device = deviceZone(undefined);
+  const deviceDiffers = device !== profileZone;
 
   return (
     <main className="page new-bill">
@@ -315,6 +356,21 @@ export default function Settings({ userId }: { userId: string }) {
           <span>Name</span>
           <span className="row-value">{p.display_name ?? ""}</span>
         </button>
+        <button
+          type="button"
+          className="row row-button"
+          onClick={() => {
+            setTzChoice(profileZone);
+            setTzError('');
+            setTzOpen(true);
+          }}
+        >
+          <span className="tz-label">
+            <span className="tz-name">Time zone</span>
+            {deviceDiffers && <small className="row-caption tz-caption">This device: {device}</small>}
+          </span>
+          <span className="row-value tz-value">{zoneLabel(profileZone)}</span>
+        </button>
         <button type="button" className="row row-button" disabled={signingOut} onClick={() => void doSignOut('local')}>
           Sign out
         </button>
@@ -369,6 +425,44 @@ export default function Settings({ userId }: { userId: string }) {
             disabled={createBusy || !hhName.trim() || hhName.trim().length > 40}
           >
             Create
+          </button>
+        </form>
+      </Sheet>
+
+      <Sheet open={tzOpen} onClose={() => !tzBusy && setTzOpen(false)} title="Time zone">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void saveZone(tzChoice);
+          }}
+        >
+          {deviceDiffers && (
+            <button type="button" className="sheet-done" disabled={tzBusy} onClick={() => void saveZone(device)}>
+              Use this device's time zone ({device})
+            </button>
+          )}
+          <label className="field">
+            <span className="field-label">Choose a time zone</span>
+            <select
+              className="field-input"
+              value={tzChoice}
+              disabled={tzBusy}
+              onChange={(e) => setTzChoice(e.target.value)}
+            >
+              {zoneList(profileZone, device).map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+            </select>
+          </label>
+          {tzError && (
+            <p role="alert" className="save-error">
+              {tzError}
+            </p>
+          )}
+          <button type="submit" className="sheet-done" disabled={tzBusy || tzChoice === profileZone}>
+            Save
           </button>
         </form>
       </Sheet>

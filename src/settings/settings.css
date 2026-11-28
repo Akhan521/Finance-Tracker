@@ -51,3 +51,22 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.tz-label {
+  min-width: 0;
+}
+
+.tz-name {
+  white-space: nowrap;
+}
+
+.tz-caption {
+  overflow-wrap: anywhere;
+}
+
+.tz-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

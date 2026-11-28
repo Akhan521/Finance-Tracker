@@ -47,7 +47,18 @@ export function useUpdateProfile(userId: string) {
       const { error } = await supabase.from('profiles').update(changes).eq('id', userId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.profile(userId) }),
+    // Personal "today" and status follow the profile zone, so a zone change refreshes entries too.
+    // Returned so mutateAsync resolves only after the profile has refetched.
+    onSuccess: (_data, changes) =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: keys.profile(userId) }),
+        ...('time_zone' in changes
+          ? [
+              qc.invalidateQueries({ queryKey: ['entries', userId] }),
+              qc.invalidateQueries({ queryKey: ['entry', userId] }),
+            ]
+          : []),
+      ]),
   });
 }
 

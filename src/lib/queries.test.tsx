@@ -55,7 +55,7 @@ vi.mock('./supabase', () => {
   return { supabase: { from } };
 });
 
-import { useArchiveBill, useArchivedBills, useBillHistory, useCreateBill, useCreateCategory, useRestoreBill, keys, sameEntriesScope } from './queries';
+import { useArchiveBill, useArchivedBills, useBillHistory, useCreateBill, useCreateCategory, useRestoreBill, useUpdateProfile, keys, sameEntriesScope } from './queries';
 
 const bill = {
   household_id: 'h1', owner_id: null, category_id: 'c', name: 'Rent', usual_cents: 100, schedule: 'monthly' as const,
@@ -144,6 +144,40 @@ describe('real inserts', () => {
       ['entries', 'u1'], ['entry', 'u1'], ['has-bills', 'u1'],
       ['bill', 'u1', 'b1'], ['bill-history', 'u1', 'b1'], ['archived-bills', 'u1'],
     ]) expect(spy).toHaveBeenCalledWith({ queryKey: key });
+  });
+
+  test('a time zone change patches only that column and refreshes profile and entries', async () => {
+    const { spy, wrapper } = setup();
+    const { result } = renderHook(() => useUpdateProfile('u1'), { wrapper });
+    await act(() => result.current.mutateAsync({ time_zone: 'America/Los_Angeles' }));
+    expect(m.updates[0].table).toBe('profiles');
+    expect(m.updates[0].row).toEqual({ time_zone: 'America/Los_Angeles' });
+    expect(spy).toHaveBeenCalledWith({ queryKey: keys.profile('u1') });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['entries', 'u1'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['entry', 'u1'] });
+  });
+
+  test('mutateAsync resolves only after the profile refetch finishes', async () => {
+    const { spy, wrapper } = setup();
+    let finish!: () => void;
+    spy.mockImplementation(() => new Promise<void>((r) => (finish = r)));
+    const { result } = renderHook(() => useUpdateProfile('u1'), { wrapper });
+    let done = false;
+    const p = result.current.mutateAsync({ lead_days: 3 }).then(() => (done = true));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(done).toBe(false);
+    finish();
+    await act(() => p);
+    expect(done).toBe(true);
+  });
+
+  test('other profile changes leave entries alone', async () => {
+    const { spy, wrapper } = setup();
+    const { result } = renderHook(() => useUpdateProfile('u1'), { wrapper });
+    await act(() => result.current.mutateAsync({ lead_days: 3 }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: keys.profile('u1') });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['entries', 'u1'] });
   });
 
   test('restore sends exactly archived_at null', async () => {
