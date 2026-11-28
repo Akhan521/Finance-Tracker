@@ -13,6 +13,7 @@ All held by Aamir, each with a strong unique password in Apple Passwords.
 | Dedicated Gmail sender | 2-Step Verification; app password "Supabase" | Sends sign-in codes, invites, reminders |
 | Supabase (owner of project A, Free plan) | 2FA (authenticator app) | Database, Auth, Edge Functions |
 | GitHub (`Akhan521`) | Secret scanning and push protection on the repo | Code, CI |
+| Cloudflare (Free plan, no card) | 2FA (authenticator app) | Pages hosting for the app. The Mac's wrangler login is limited to `account:read`, `user:read`, `pages:write` (plus `offline_access`); wrangler telemetry is off |
 
 ## Secrets
 
