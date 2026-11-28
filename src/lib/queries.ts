@@ -22,6 +22,7 @@ export const keys = {
   householdNames: (userId: string) => ['household-names', userId] as const,
   members: (userId: string) => ['members', userId] as const,
   pendingInvites: (userId: string) => ['pending-invites', userId] as const,
+  deletionBlocker: (userId: string) => ['deletion-blocker', userId] as const,
   hasBills: (userId: string, view: View, householdId: string | null) =>
     ['has-bills', userId, view, householdId] as const,
 };
@@ -706,5 +707,63 @@ export function useCreateBill(userId: string) {
         qc.invalidateQueries({ queryKey: ['entries', userId] }),
         qc.invalidateQueries({ queryKey: ['has-bills', userId] }),
       ]),
+  });
+}
+
+export type DeletionBlocker = 'sole_member' | 'last_owner' | null;
+
+// Why this account can't be deleted right now, if anything. Always asked fresh.
+export function useDeletionBlocker(userId: string) {
+  return useQuery({
+    queryKey: keys.deletionBlocker(userId),
+    gcTime: 0,
+    staleTime: 0,
+    queryFn: async (): Promise<DeletionBlocker> => {
+      const { data, error } = await supabase.rpc('account_deletion_blocker');
+      if (error) throw error;
+      return data === 'sole_member' || data === 'last_owner' ? data : null;
+    },
+  });
+}
+
+export const DELETED_FLAG = 'account-deleted';
+const DELETE_KEYS = ['sole_member', 'last_owner', 'unauthorized', 'could_not_delete'];
+
+// Deletes the caller's account through the Edge Function. Failures are thrown as
+// one of a few known keys; anything unexpected reads as could_not_delete.
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+      if (!error) return;
+      let key = 'could_not_delete';
+      if (error instanceof FunctionsHttpError) {
+        // The gateway's own 401 has no error key in its body.
+        if (error.context.status === 401) key = 'unauthorized';
+        try {
+          const body = (await error.context.json()) as { error?: unknown };
+          if (typeof body.error === 'string' && DELETE_KEYS.includes(body.error)) key = body.error;
+        } catch {
+          // keep the key from the status
+        }
+      }
+      throw new Error(key);
+    },
+    onSuccess: async () => {
+      try {
+        sessionStorage.setItem(DELETED_FLAG, '1');
+      } catch {
+        // The notice is then skipped; the sign-in screen still appears.
+      }
+      try {
+        // The user no longer exists, so a global sign-out would fail.
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignored: the account is already gone.
+      } finally {
+        qc.clear();
+      }
+    },
   });
 }

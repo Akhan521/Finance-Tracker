@@ -6,6 +6,7 @@ import './SignIn.css';
 const NEUTRAL = 'If this email has access, a code is on its way.';
 const BAD_CODE = "That code didn't work. Check it or send a new one.";
 const RESEND_SECONDS = 60;
+const DELETED_FLAG = 'account-deleted';
 
 type Step = 'email' | 'code';
 
@@ -21,6 +22,21 @@ export default function SignIn() {
   const secondsLeft = Math.max(0, Math.ceil((resendAt - now) / 1000));
   const codeRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  // One-shot: set when the account was just deleted. Read now, removed in the effect below.
+  const [deleted] = useState(() => {
+    try {
+      return sessionStorage.getItem(DELETED_FLAG) === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(DELETED_FLAG);
+    } catch {
+      // The notice may then show once more after a reload.
+    }
+  }, []);
   const focusEmail = useRef(false);
 
   useEffect(() => {
@@ -94,6 +110,11 @@ export default function SignIn() {
   return (
     <main className="signin">
       <h1>{APP_NAME}</h1>
+      {deleted && (
+        <p role="status" className="signin-message">
+          Your account was deleted.
+        </p>
+      )}
       {step === 'email' ? (
         <form onSubmit={onEmailSubmit} className="signin-card">
           <p className="signin-hint">Enter your email and we will send you a 6-digit code.</p>

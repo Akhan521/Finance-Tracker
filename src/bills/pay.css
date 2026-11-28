@@ -130,6 +130,7 @@
   background: transparent;
   border: 0;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .pay-link-button.danger {

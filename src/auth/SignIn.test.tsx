@@ -189,4 +189,23 @@ describe('SignIn', () => {
       expect((screen.getByRole('button', { name: /send a new code/i }) as HTMLButtonElement).disabled).toBe(true);
     });
   });
+
+  describe('after an account was deleted', () => {
+    afterEach(() => sessionStorage.clear());
+
+    test('shows a quiet notice once, not after a remount', () => {
+      sessionStorage.setItem('account-deleted', '1');
+      const first = render(<SignIn />);
+      expect(screen.getByText('Your account was deleted.').getAttribute('role')).toBe('status');
+      expect(sessionStorage.getItem('account-deleted')).toBeNull();
+      first.unmount();
+      render(<SignIn />);
+      expect(screen.queryByText('Your account was deleted.')).toBeNull();
+    });
+
+    test('shows nothing without the flag', () => {
+      render(<SignIn />);
+      expect(screen.queryByText('Your account was deleted.')).toBeNull();
+    });
+  });
 });

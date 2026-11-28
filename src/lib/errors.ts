@@ -12,6 +12,7 @@ const MESSAGES: Record<string, string> = {
   household_needs_member: 'A household needs at least one member.',
   invite_not_found: "That invite isn't available any more.",
   invite_not_pending: 'That invite has already been used or cancelled.',
+  sole_member: 'Delete your household first, or invite someone and leave it.',
   last_owner: 'Make someone else an owner first.',
   no_access: "You can't do that anymore. Refresh and try again.",
   not_credit_card: 'That only applies to credit card bills.',
