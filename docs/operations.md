@@ -13,7 +13,7 @@ All held by Aamir, each with a strong unique password in Apple Passwords.
 | Dedicated Gmail sender | 2-Step Verification; app password "Supabase" | Sends sign-in codes, invites, reminders |
 | Supabase (owner of project A, Free plan) | 2FA (authenticator app) | Database, Auth, Edge Functions |
 | GitHub (`Akhan521`) | Secret scanning and push protection on the repo | Code, CI |
-| Cloudflare (Free plan, no card) | 2FA (authenticator app) | Pages hosting for the app. The Mac's wrangler login is limited to `account:read`, `user:read`, `pages:write` (plus `offline_access`); wrangler telemetry is off |
+| Cloudflare (Free plan, no card) | 2FA (authenticator app) | Workers static assets hosting for the app (D35). The Mac's wrangler login is limited to `account:read`, `user:read`, `workers_scripts:write` (plus `offline_access`); wrangler telemetry is off |
 
 ## Secrets
 
@@ -129,32 +129,62 @@ maintenance runs exist yet. Task 23 flips it to `'true'`.
 
 ## Deploy
 
-The app is a static build hosted on Cloudflare Pages (free plan). The deploy
-script is `scripts/deploy.mjs`. Nothing that identifies the live deployment is
-committed (D32): the values live in the git-ignored `.env.production.local`.
+The app is a static build served by a Cloudflare Worker with static assets only
+(free plan, D35). The deploy script is `scripts/deploy.mjs`. Nothing that
+identifies the live deployment is committed (D32): the values live in the
+git-ignored `.env.production.local`, and the Worker config is generated into the
+git-ignored `.wrangler/` folder for each run and deleted afterwards.
 
 **`.env.production.local` holds three names:**
 - `VITE_SUPABASE_URL`: the project's `https://<project-ref>.supabase.co`
   address, no path.
 - `VITE_SUPABASE_PUBLISHABLE_KEY`: the `sb_publishable_...` key only. The
   script refuses a secret key.
-- `PAGES_PROJECT`: the Pages project name, a lowercase slug.
+- `WORKER_NAME`: the Worker's name, a lowercase slug (1 to 63 letters, digits
+  or dashes).
 
 **Commands.**
 - `npm run preview:prod`: builds with the local stack's `.env.local`, applies
   the security headers, checks the bundle for secrets, and serves it at
-  `http://localhost:8788`. No Cloudflare account is needed.
-- `npm run deploy`: the same build and checks with `.env.production.local`,
-  then `npx wrangler pages deploy` with `--branch main`. It refuses to run
+  `http://localhost:8788` with `wrangler dev`. No Cloudflare account is needed.
+- `npm run deploy -- --check`: the full production pipeline (clean `main`,
+  `.env.production.local` only, checks, build, secret scan) ending in
+  `wrangler deploy --dry-run`. Nothing is uploaded.
+- `npm run deploy`: the same, then `npx wrangler deploy`. It refuses to run
   unless the current branch is `main` and the working tree is clean, and it
-  rejects any argument other than `--local`. The script stops with a message naming
-  any missing or invalid setting (never its value).
+  rejects any argument other than `--local` or `--check` (never both).
+  Wrangler's stdin is disconnected.
+
+**Why the deploy has these guards.**
+- Wrangler auto-answers its own prompts when it isn't in an interactive
+  terminal. Silent subdomain auto-registration happens only when wrangler
+  detects an AI agent from environment variables (it then registers a
+  workers.dev subdomain from the package name, with no prompt). A plain
+  non-interactive shell declines and fails instead. So the script gives every
+  wrangler process an allowlisted environment with no agent markers.
+- The dry run (`wrangler deploy --dry-run`) validates the config and assets
+  only. Account-side prompts (subdomain, overwrite) first appear on the real
+  deploy. The script therefore also watches the real deploy's output (URLs, keys,
+  emails, the Worker name and local paths are redacted) and exits non-zero
+  with a warning if a prompt was auto-confirmed or a subdomain registration
+  was mentioned. Check the account by hand if that happens.
+- Both runs use `--strict`, so overwrite and secret confirms abort instead of
+  returning yes. Wrangler writes no log files and no metrics, and the generated
+  `.wrangler/deploy/` folder is removed after every run, including on Ctrl-C.
 
 **Steps that need Aamir.**
 1. Create a free Cloudflare account (no card).
-2. Run `npx wrangler telemetry disable` once, then `npx wrangler login`.
-3. Fill in `.env.production.local`, then run `npm run deploy`.
-4. In the Supabase dashboard, set Auth Site URL to the `*.pages.dev` address
-   Pages gives the project.
+2. Run `npx wrangler telemetry disable` once.
+3. Run `npx wrangler logout`, then
+   `npx wrangler login --scopes account:read user:read workers_scripts:write`.
+4. In the Cloudflare dashboard (Workers & Pages, then the subdomain setting),
+   set the account's workers.dev subdomain yourself, with a name that doesn't
+   identify you. Also confirm that no Worker named `WORKER_NAME` exists yet.
+5. Fill in `.env.production.local`. Run `npm run deploy -- --check`, then
+   `npm run deploy`, yourself in a separate macOS Terminal window (not through
+   Claude Code and not with `!`).
+6. Find the live address in the Cloudflare dashboard (the Worker's Settings,
+   then Domains & Routes), since the script redacts it from its output. Set
+   Supabase Auth Site URL to that workers.dev address.
 
 ## Restore
