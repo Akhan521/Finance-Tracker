@@ -126,4 +126,34 @@ maintenance runs exist yet. Task 23 flips it to `'true'`.
   update Supabase's SMTP setting and the function secrets right away, or
   sign-in codes, invites, and reminders stop.
 
+## Deploy
+
+The app is a static build hosted on Cloudflare Pages (free plan). The deploy
+script is `scripts/deploy.mjs`. Nothing that identifies the live deployment is
+committed (D32): the values live in the git-ignored `.env.production.local`.
+
+**`.env.production.local` holds three names:**
+- `VITE_SUPABASE_URL`: the project's `https://<project-ref>.supabase.co`
+  address, no path.
+- `VITE_SUPABASE_PUBLISHABLE_KEY`: the `sb_publishable_...` key only. The
+  script refuses a secret key.
+- `PAGES_PROJECT`: the Pages project name, a lowercase slug.
+
+**Commands.**
+- `npm run preview:prod`: builds with the local stack's `.env.local`, applies
+  the security headers, checks the bundle for secrets, and serves it at
+  `http://localhost:8788`. No Cloudflare account is needed.
+- `npm run deploy`: the same build and checks with `.env.production.local`,
+  then `npx wrangler pages deploy` with `--branch main`. It refuses to run
+  unless the current branch is `main` and the working tree is clean, and it
+  rejects any argument other than `--local`. The script stops with a message naming
+  any missing or invalid setting (never its value).
+
+**Steps that need Aamir.**
+1. Create a free Cloudflare account (no card).
+2. Run `npx wrangler telemetry disable` once, then `npx wrangler login`.
+3. Fill in `.env.production.local`, then run `npm run deploy`.
+4. In the Supabase dashboard, set Auth Site URL to the `*.pages.dev` address
+   Pages gives the project.
+
 ## Restore

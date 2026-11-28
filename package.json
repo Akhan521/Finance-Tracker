@@ -10,7 +10,9 @@
     "typecheck": "tsc -b",
     "test": "vitest run --project unit",
     "test:db": "vitest run --project db --passWithNoTests",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "node scripts/deploy.mjs",
+    "preview:prod": "node scripts/deploy.mjs --local"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

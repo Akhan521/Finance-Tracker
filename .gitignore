@@ -32,3 +32,8 @@ dist/
 *.age
 *.sql.gz
 backup*
+.wrangler/
+wrangler.toml
+wrangler.json
+wrangler.jsonc
+.dev.vars*
