@@ -1,6 +1,6 @@
 # Project Snapshot
 
-**Last updated:** 2026-11-26 (end of session 19: the Household screen, invites by email, and deleting a household done)
+**Last updated:** 2026-11-27 (end of session 20: delete account done; the app is LIVE on Cloudflare Workers with strict security headers; time zone fix)
 
 Paste this whole file into a new session to pick up where we left off. The
 full reasoning behind each decision is in its own file under
@@ -17,7 +17,7 @@ are.
 > I'm building a household bill/finance tracker in this repo
 > (`~/Developer/finance-tracker`). Brainstorming is done, the design is
 > **approved** (`docs/design.md`), and the implementation plan is written
-> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is under way: Tasks 10 to 18 and V4's local sign-in are done. Read `docs/SNAPSHOT.md`,
+> (`docs/plan.md`). Phase 2 is complete and live; Phase 3 (the app) is complete and the app is live (Tasks 10 to 20; D35 moved hosting to Cloudflare Workers static assets). Read `docs/SNAPSHOT.md`,
 > `docs/design.md`, and `docs/plan.md`, then continue from "Next step"
 > below. Record any new decision (with trade-offs and why) as a new file
 > `docs/decisions/NNN-short-slug.md`, add it to the table in this snapshot,
@@ -53,8 +53,8 @@ not money. Core needs:
   Task 11 (app shell, theme, first run) are done, and so are Tasks 12
   (home calendar), 13 (day list and pay sheet), 14 (new bill), 15 (edit
   bill, history, archive), 16 (category donut), and 17 (settings, create and
-  leave household, CSV export), and 18 (household screen, invites by email,
-  delete household). V4's
+  leave household, CSV export), 18 (household screen, invites by email,
+  delete household), 19 (delete account) and 20 (deployed live, D35). V4's
   iPhone half (PWA,
   deploy, home-screen check) waits until Aamir has his iPhone. Brainstorming followed the superpowers process: questions →
   playback → written design → reviewer check → approval → plan.
@@ -540,6 +540,53 @@ not money. Core needs:
     deleted with its cascade checked. Test data was restored each time.
   - **476 unit tests and 209 db tests pass.** Three commits, plus this
     snapshot.
+  - **After the snapshot, a CI fix:** CI copied `supabase/functions/.env`
+    after starting Supabase, so the edge runtime had no `APP_URL` and every
+    invite test got 500. Reproduced locally, fixed by copying first. One more
+    commit.
+- **Session 20 (2026-11-27):**
+  - **Task 19, delete account:** honest warning (backups age out), export
+    first, blocked view for a last owner or sole member, type DELETE, then a
+    local sign-out with every cache cleared and "Your account was deleted."
+    on the sign-in screen. Checked live on the local stack with a throwaway
+    account (user, profile and personal bill gone).
+  - **Task 20 Part A:** home-screen install (PWA: nothing from Supabase is
+    cached, new releases take over at once), the plan's security headers
+    plus COOP/CORP, and a deploy script; zero CSP violations on a tour of the
+    production build, with a positive control.
+  - **Hosting changed (D35):** `wrangler pages project create` now delegates
+    to Workers and auto-answered its own prompt; nothing was created. Moved to
+    Workers static assets on Cloudflare's recommendation. Two opus security
+    reviews found that Wrangler detects AI agents from env vars and would
+    silently register a workers.dev subdomain named after the repo, that dry
+    runs skip every account-side check, and that some overwrite confirms
+    auto-answer yes. The deploy script now gives Wrangler an allowlisted env
+    (12 agent markers in, 0 out), uses `--strict`, writes no logs, redacts
+    its output, refuses unless on a clean `main`, and is run by Aamir in his
+    own Terminal window.
+  - **Accounts:** Cloudflare (Free, no card, 2FA), Wrangler login limited to
+    `account:read`, `user:read`, `workers_scripts:write`; telemetry off; old
+    debug logs (some with token text) deleted and folders made owner-only.
+    The account's workers.dev subdomain had been auto-named from Aamir's
+    email; he renamed it to something neutral.
+  - **Live:** the invite and delete-account functions are deployed
+    (sign-in required, CORS only from the app's address, `APP_URL` set); the
+    app is deployed. Outside checks: every header exact and single, CSP
+    allows only the live Supabase, no secrets in the live bundle, all 12
+    tables and views refuse anonymous reads, unknown emails get no code.
+    Aamir set the Auth Site URL.
+  - **Smoke test:** Aamir signed in himself; Claude created household
+    "Home", added and paid a household test bill, added a personal one, then
+    archived both. Zero CSP violations. The invite test was skipped.
+  - **Bug found live and fixed:** Aamir's account predates the sign-up time
+    zone hint, so his profile was on UTC and personal "today" was a day
+    ahead. Settings now has a Time zone row with a one-tap "use this device's
+    time zone"; redeployed and fixed his account. Review caught a regression
+    on the way (settings saves stopped waiting for the refetch). At Aamir's
+    request, time zones now show friendly names ("Los Angeles (Pacific
+    Time)"), grouped by region, never the raw id with underscores.
+  - **606 unit tests and 209 db tests pass.** Six commits, plus this
+    snapshot.
 - **Mockups:** stored locally in `.superpowers/brainstorm/` (git-ignored, not
   pushed). The final picks are `minimal-v1.html` (layout), `pastel-v1.html`
   (theme, calendar, and donut A), and `screens-v1.html` + `screens-v2.html`
@@ -590,6 +637,7 @@ discussed).
 | [D31](decisions/031-pause-check-on-live-project.md) | **Drop the early pause test (V2).** Supabase documents that API calls prevent pausing. Instead, watch the live project for a pause-warning email for its first 3 weeks. (Aamir's choice after the plan review.) | Decided |
 | [D32](decisions/032-public-repo-exposure.md) | **The public repo never identifies the live app:** no project URL or ref, Pages address, sender Gmail, bucket name, or family emails. The deploy script fills them in from git-ignored files. **Supabase Auth sends at most 10 emails an hour**, so code-request spam to a known email can't use up Gmail's daily limit. Turnstile CAPTCHA only if abuse appears. (Aamir, after a pre-push check.) | Decided |
 | [D33](decisions/033-no-passwords-at-all.md) | **No password ever works.** A trigger on Supabase's user table blanks every password, so an attacker's sign-up for an invited email (which D23's test showed survives the real person's code sign-in) can never be used. Sign-in stays code-only (D18); the invite design and the hook (D23) stay. Tests and CI guard it; D23's fallback stays in reserve. (Aamir, after Task 3's test failed.) | Decided |
+| [D35](decisions/035-host-on-workers-static-assets.md) | **Host on Cloudflare Workers static assets, not Pages.** Same `_headers`, SPA mode, preview URLs off, config generated at deploy time so the name stays out of the repo, minimal Wrangler scopes, Aamir runs deploys in his own terminal. (Aamir, after Pages delegated to Workers.) | Decided |
 | [D34](decisions/034-housemates-read-full-profiles.md) | **Housemates may read each other's full profile row** (time zone, reminder settings), as the plan's data model has it, but **not edit it**; the app shows only names. A deliberate exception to §9's wording; a test pins it. (Aamir, after the test audit.) | Decided |
 
 ## Facts about the household (from Aamir)
@@ -917,9 +965,29 @@ and the invite details.
 - **Carry-forwards:**
   - Hardening pass: earlier writes (edit bill, archive/restore, card
     figures) should get the same zero-rows `no_access` check.
-  - First deploy (Task 20): set the invite function's secrets (`APP_URL`,
-    SMTP, `MAIL_FROM_NAME`, `ALLOWED_ORIGIN`), regenerate `deno.lock` with a
-    real Deno if one is available, and confirm `verify_jwt`.
+  - Regenerate the invite function's `deno.lock` with a real Deno if one
+    is available.
+
+**New calls from session 20 (not yet reviewed by Aamir, except where noted):**
+- **Hosting on Workers static assets** (D35, Aamir).
+- **Two extra headers beyond the plan:** `Cross-Origin-Opener-Policy` and
+  `Cross-Origin-Resource-Policy`, both `same-origin`.
+- **A natural-sounding site name and a neutral workers.dev subdomain** (Aamir);
+  neither is in the repo (D32).
+- **Deploys are run by Aamir in his own Terminal window,** never by Claude,
+  because Wrangler changes behaviour when it detects an AI agent.
+- **The export and delete flows:** account deletion is typed `DELETE`;
+  household deletion types the household's name.
+- **Polish-pass list (not urgent):**
+  - First-run Home should show an empty calendar, not hide the grid.
+  - The pay sheet pre-fills the bill's usual amount; the entry's own amount
+    is probably better when they differ.
+  - Deploy script: run prompt-marker detection on raw output; the local
+    preview and a deploy must not run at the same time.
+  - The same zero-rows `no_access` check for older writes.
+  - Touch targets under 44 px; Archived bills title slightly off centre;
+    `OfflineBanner` live region.
+- **Still open for Aamir:** the per-inviter invite cap.
 
 Any new calls go in a fresh list here.
 
@@ -955,10 +1023,11 @@ None. Everything needed to plan the build is decided.
 
 ## Next step
 
-1. **Task 19: the delete account flow, then Task 20: the first real
-   deploy** with security headers and a live smoke test. Task 20 needs Aamir:
-   a free Cloudflare account and a short iPhone check (which also finishes
-   V4). Then Phase 4 (reminders, retention, health watchdog, backups).
+1. **Phase 4, starting with Task 21: daily reminder emails** (idempotent,
+   D29), then Task 22 (retention and heads-up emails), Task 23 (turn the
+   health watchdog on), Task 24 (encrypted weekly backups, needs Aamir's
+   Backblaze account). Every future app deploy: Aamir runs
+   `npm run deploy -- --check` then `npm run deploy` in his own Terminal.
 2. **Watch the daily health Action.** A failure email from GitHub means
    look right away.
 3. **V4: the iPhone install check,** whenever Aamir has his iPhone and a
